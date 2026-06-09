@@ -203,6 +203,7 @@ function pengajuanPrintKopSuratHtml(p, karyawan) {
     ['Divisi / Unit', p.divisi || '-'],
     ['Tanggal Pengajuan', formatDate(p.tanggal || p.createdAt)],
     ['Status', statusLabelText(p.status)],
+    ['Nama File Surat', p.suratFileName || '-'],
     ['Nama File RAB', p.fileName || '-'],
   ];
   if (p.pesanAdmin) rows.push(['Catatan Admin', p.pesanAdmin]);
@@ -358,6 +359,32 @@ async function renderBuktiPrintPreview(urls) {
   }
 }
 
+function pengajuanPrintSuratHtml(p) {
+  if (!p?.suratFileUrl) {
+    return `
+    <section class="print-page print-page-surat">
+      <header class="print-page-header print-page-header-compact">
+        <h2>LAMPIRAN SURAT PENGAJUAN</h2>
+      </header>
+      <p class="print-empty">Tidak ada file surat pengajuan terlampir.</p>
+    </section>`;
+  }
+
+  const url = p.suratFileUrl;
+  const ext = (p.suratFileType || getFileExt(p.suratFileName || '') || '').toLowerCase();
+
+  return `
+  <section class="print-page print-page-surat">
+    <header class="print-page-header print-page-header-compact">
+      <h2>LAMPIRAN SURAT PENGAJUAN</h2>
+      <p>${escapeHtml(p.suratFileName || 'Surat Pengajuan')}</p>
+    </header>
+    <div class="print-rab-sheet" id="printSuratContainer" data-doc-url="${escapeHtml(url)}" data-doc-ext="${escapeHtml(ext)}">
+      <p class="print-rab-loading">${icon('pending', 18)} Memuat tampilan surat...</p>
+    </div>
+  </section>`;
+}
+
 function pengajuanPrintRabHtml(p) {
   if (!p?.fileUrl) {
     return `
@@ -377,7 +404,7 @@ function pengajuanPrintRabHtml(p) {
     <header class="print-page-header print-page-header-compact">
       <h2>LAMPIRAN RENCANA ANGGARAN BIAYA (RAB)</h2>
     </header>
-    <div class="print-rab-sheet" id="printRabContainer" data-rab-url="${escapeHtml(url)}" data-rab-ext="${escapeHtml(ext)}">
+    <div class="print-rab-sheet" id="printRabContainer" data-doc-url="${escapeHtml(url)}" data-doc-ext="${escapeHtml(ext)}">
       <p class="print-rab-loading">${icon('pending', 18)} Memuat tampilan RAB...</p>
     </div>
   </section>`;
@@ -406,16 +433,27 @@ function rabPrintFallbackIframe(url) {
   return `<iframe src="${url}#toolbar=0&navpanes=0&view=FitH" title="Preview RAB" class="print-rab-iframe"></iframe>`;
 }
 
-async function renderRabPrintPreview(p) {
-  const container = document.getElementById('printRabContainer');
-  if (!container || !p?.fileUrl) return;
+function docPrintFallbackHtml(fileName, ext) {
+  const hint = ['doc', 'docx'].includes(ext)
+    ? 'File Word — unduh file asli untuk melihat isi surat pengajuan.'
+    : ext === 'xls' || ext === 'xlsx'
+      ? 'File Excel — unduh file asli untuk melihat isi dokumen.'
+      : 'Format tidak dapat dipratinjau — unduh file asli.';
+  return `<div class="print-rab-fallback">
+    <p><strong>${escapeHtml(fileName || 'Dokumen')}</strong></p>
+    <p>${hint}</p>
+  </div>`;
+}
 
-  const url = p.fileUrl;
-  const ext = (p.fileType || getFileExt(p.fileName || '') || '').toLowerCase();
+async function renderFilePrintPreview(containerId, { url, fileName, fileType, imgAlt }) {
+  const container = document.getElementById(containerId);
+  if (!container || !url) return;
+
+  const ext = (fileType || getFileExt(fileName || '') || '').toLowerCase();
   container.dataset.loading = '1';
 
   if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) || url.startsWith('data:image/')) {
-    container.innerHTML = `<img src="${url}" alt="Rencana Anggaran Biaya" class="print-rab-img" />`;
+    container.innerHTML = `<img src="${url}" alt="${escapeHtml(imgAlt)}" class="print-rab-img" />`;
     delete container.dataset.loading;
     return;
   }
@@ -446,24 +484,39 @@ async function renderRabPrintPreview(p) {
       const img = document.createElement('img');
       img.src = canvas.toDataURL('image/jpeg', 0.94);
       img.className = 'print-rab-img';
-      img.alt = 'Rencana Anggaran Biaya (RAB)';
+      img.alt = imgAlt;
       container.innerHTML = '';
       container.appendChild(img);
       delete container.dataset.loading;
       return;
     } catch (e) {
-      console.warn('renderRabPrintPreview pdf:', e);
+      console.warn('renderFilePrintPreview pdf:', e);
       container.innerHTML = rabPrintFallbackIframe(url);
       delete container.dataset.loading;
       return;
     }
   }
 
-  container.innerHTML = `<div class="print-rab-fallback">
-    <p><strong>${escapeHtml(p.fileName || 'File RAB')}</strong></p>
-    <p>File Excel — unduh file asli untuk melihat isi RAB.</p>
-  </div>`;
+  container.innerHTML = docPrintFallbackHtml(fileName, ext);
   delete container.dataset.loading;
+}
+
+async function renderSuratPrintPreview(p) {
+  return renderFilePrintPreview('printSuratContainer', {
+    url: p?.suratFileUrl,
+    fileName: p?.suratFileName,
+    fileType: p?.suratFileType,
+    imgAlt: 'Surat Pengajuan',
+  });
+}
+
+async function renderRabPrintPreview(p) {
+  return renderFilePrintPreview('printRabContainer', {
+    url: p?.fileUrl,
+    fileName: p?.fileName,
+    fileType: p?.fileType,
+    imgAlt: 'Rencana Anggaran Biaya (RAB)',
+  });
 }
 
 async function handlePengajuanPrint(p) {
@@ -471,6 +524,12 @@ async function handlePengajuanPrint(p) {
   if (buktiPages?.dataset.buktiLoading === '1' || buktiPages?.querySelector('.print-rab-loading')) {
     showToast('Menyiapkan foto bukti...', 'info');
     await renderBuktiPrintPreview(p?.bukti);
+  }
+
+  const suratContainer = document.getElementById('printSuratContainer');
+  if (suratContainer && (suratContainer.dataset.loading === '1' || suratContainer.querySelector('.print-rab-loading'))) {
+    showToast('Menyiapkan tampilan surat...', 'info');
+    await renderSuratPrintPreview(p);
   }
 
   const container = document.getElementById('printRabContainer');
@@ -532,6 +591,7 @@ function pengajuanPrintDocumentHtml(p, karyawan) {
   return `
   <div class="pengajuan-print-doc print-only" aria-hidden="true">
     ${pengajuanPrintKopSuratHtml(p, karyawan)}
+    ${pengajuanPrintSuratHtml(p)}
     ${pengajuanPrintBuktiHtml(p.bukti)}
     ${pengajuanPrintRabHtml(p)}
   </div>`;
@@ -1401,6 +1461,9 @@ function bindPengajuanDetail(id, context, user, scope = 'admin') {
   const p = getPengajuanFromStore(id);
   if (p?.bukti?.length) {
     renderBuktiPrintPreview(p.bukti).catch((e) => console.warn('Bukti print preview:', e));
+  }
+  if (p?.suratFileUrl) {
+    renderSuratPrintPreview(p).catch((e) => console.warn('Surat print preview:', e));
   }
   if (p?.fileUrl) {
     renderRabPrintPreview(p).catch((e) => console.warn('RAB print preview:', e));
