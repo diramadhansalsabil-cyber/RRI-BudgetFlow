@@ -1,8 +1,12 @@
 /**
- * Generate js/config.js dari environment variables (Vercel build).
+ * Alias build script — sama dengan generate-config.cjs
+ * Dipakai jika Vercel/GitHub masih memanggil .js (bukan .cjs).
  */
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const url = process.env.SUPABASE_URL || '';
 const key = process.env.SUPABASE_ANON_KEY || '';
@@ -10,6 +14,8 @@ const key = process.env.SUPABASE_ANON_KEY || '';
 const out = `window.APP_CONFIG = {
   SUPABASE_URL: ${JSON.stringify(url)},
   SUPABASE_ANON_KEY: ${JSON.stringify(key)},
+  FORCE_CLOUD: true,
+  AUTO_LOCAL_FALLBACK: false,
 };
 `;
 

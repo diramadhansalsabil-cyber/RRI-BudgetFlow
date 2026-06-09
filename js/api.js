@@ -68,6 +68,11 @@ function pengajuanFromRow(row) {
     storagePath: row.storage_path,
     fileType: row.file_type,
     fileSize: Number(row.file_size) || 0,
+    suratFileName: row.surat_file_name || '',
+    suratFileUrl: row.surat_file_url || '',
+    suratStoragePath: row.surat_storage_path || '',
+    suratFileType: row.surat_file_type || '',
+    suratFileSize: Number(row.surat_file_size) || 0,
     status: row.status,
     pesanAdmin: row.pesan_admin || '',
     tanggalKeputusan: row.tanggal_keputusan,
@@ -604,16 +609,23 @@ function normalizeKode(raw) {
   return String(raw || '').trim();
 }
 
-async function apiUploadPengajuanFile(userId, file) {
-  if (isLocalMode()) return localDbUploadPengajuanFile(userId, file);
-  const v = validateUploadFile(file, APP_LIMITS.ALLOWED_PENGAJUAN_EXT);
+async function apiUploadPengajuanFile(userId, file, subfolder = 'rab') {
+  if (isLocalMode()) return localDbUploadPengajuanFile(userId, file, subfolder);
+  const allowed =
+    subfolder === 'surat' ? APP_LIMITS.ALLOWED_SURAT_PENGAJUAN_EXT : APP_LIMITS.ALLOWED_PENGAJUAN_EXT;
+  const v = validateUploadFile(file, allowed);
   if (!v.ok) throw new Error(v.message);
   const sb = getSupabase();
-  const path = `${userId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${userId}/${subfolder}/${Date.now()}-${safeName}`;
   const { error } = await sb.storage.from(STORAGE_BUCKETS.pengajuan).upload(path, file, { upsert: false });
   if (error) throw error;
   const { data } = sb.storage.from(STORAGE_BUCKETS.pengajuan).getPublicUrl(path);
   return { path, url: data.publicUrl, ext: v.ext, size: file.size, name: file.name };
+}
+
+async function apiUploadPengajuanSuratFile(userId, file) {
+  return apiUploadPengajuanFile(userId, file, 'surat');
 }
 
 async function apiCreatePengajuan(payload, session) {
@@ -636,6 +648,11 @@ async function apiCreatePengajuan(payload, session) {
     storage_path: payload.storagePath,
     file_type: payload.fileType,
     file_size: payload.fileSize,
+    surat_file_name: payload.suratFileName || null,
+    surat_file_url: payload.suratFileUrl || null,
+    surat_storage_path: payload.suratStoragePath || null,
+    surat_file_type: payload.suratFileType || null,
+    surat_file_size: payload.suratFileSize || null,
     status: 'pending',
     pesan_admin: '',
   };
@@ -648,14 +665,17 @@ async function apiCreatePengajuan(payload, session) {
   }
   await apiLogActivity(session, 'Buat Pengajuan Anggaran', kode, { judul: payload.judul });
   await apiLogActivity(session, 'Upload File RAB', payload.fileName, { kode });
+  if (payload.suratFileName) {
+    await apiLogActivity(session, 'Upload Surat Pengajuan', payload.suratFileName, { kode });
+  }
   if (payload.buktiUrls?.length) {
     await apiLogActivity(session, 'Upload Foto Bukti', `${payload.buktiUrls.length} foto`, { kode });
   }
   return pengajuanFromRow(data);
 }
 
-async function apiUpdatePengajuanFile(id, file, session, meta = {}) {
-  if (isLocalMode()) return localDbUpdatePengajuanFile(id, file, session, meta);
+async function apiUpdatePengajuanFile(id, session, meta = {}, files = {}) {
+  if (isLocalMode()) return localDbUpdatePengajuanFile(id, session, meta, files);
   const patch = {
     status: 'pending',
     updated_at: new Date().toISOString(),
@@ -665,16 +685,24 @@ async function apiUpdatePengajuanFile(id, file, session, meta = {}) {
   if (meta.divisi != null) patch.divisi = meta.divisi;
   if (meta.tanggal != null) patch.tanggal = meta.tanggal;
   if (meta.buktiUrls != null) patch.bukti_urls = meta.buktiUrls;
-  if (file) {
-    const v = validateUploadFile(file, APP_LIMITS.ALLOWED_PENGAJUAN_EXT);
-    if (!v.ok) throw new Error(v.message);
-    const uploaded = await apiUploadPengajuanFile(session.id, file);
+  if (files.rab) {
+    const uploaded = await apiUploadPengajuanFile(session.id, files.rab);
     Object.assign(patch, {
       file_name: uploaded.name,
       file_url: uploaded.url,
       storage_path: uploaded.path,
       file_type: uploaded.ext,
       file_size: uploaded.size,
+    });
+  }
+  if (files.surat) {
+    const uploaded = await apiUploadPengajuanSuratFile(session.id, files.surat);
+    Object.assign(patch, {
+      surat_file_name: uploaded.name,
+      surat_file_url: uploaded.url,
+      surat_storage_path: uploaded.path,
+      surat_file_type: uploaded.ext,
+      surat_file_size: uploaded.size,
     });
   }
   const sb = getSupabase();

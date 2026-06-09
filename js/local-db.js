@@ -252,11 +252,13 @@ async function localDbUploadBuktiFiles(userId, files) {
   return urls;
 }
 
-async function localDbUploadPengajuanFile(userId, file) {
-  const v = validateUploadFile(file, APP_LIMITS.ALLOWED_PENGAJUAN_EXT);
+async function localDbUploadPengajuanFile(userId, file, subfolder = 'rab') {
+  const allowed =
+    subfolder === 'surat' ? APP_LIMITS.ALLOWED_SURAT_PENGAJUAN_EXT : APP_LIMITS.ALLOWED_PENGAJUAN_EXT;
+  const v = validateUploadFile(file, allowed);
   if (!v.ok) throw new Error(v.message);
   const url = await localFileToDataUrl(file, APP_LIMITS.MAX_FILE_MB);
-  return { path: `local/${userId}/${file.name}`, url, ext: v.ext, size: file.size, name: file.name };
+  return { path: `local/${userId}/${subfolder}/${file.name}`, url, ext: v.ext, size: file.size, name: file.name };
 }
 
 async function localDbUploadTemplateFile(folderId, file, session) {
@@ -402,6 +404,11 @@ function localDbCreatePengajuan(payload, session) {
     storage_path: payload.storagePath,
     file_type: payload.fileType,
     file_size: payload.fileSize,
+    surat_file_name: payload.suratFileName || null,
+    surat_file_url: payload.suratFileUrl || null,
+    surat_storage_path: payload.suratStoragePath || null,
+    surat_file_type: payload.suratFileType || null,
+    surat_file_size: payload.suratFileSize || null,
     status: 'pending',
     pesan_admin: '',
     tanggal_keputusan: null,
@@ -414,7 +421,7 @@ function localDbCreatePengajuan(payload, session) {
   return pengajuanFromRow(row);
 }
 
-async function localDbUpdatePengajuanFile(id, file, session, meta = {}) {
+async function localDbUpdatePengajuanFile(id, session, meta = {}, files = {}) {
   const db = localDbRead();
   const row = db.pengajuan.find((p) => p.id === id && p.user_id === session.id);
   if (!row) throw new Error('Pengajuan tidak ditemukan');
@@ -424,13 +431,21 @@ async function localDbUpdatePengajuanFile(id, file, session, meta = {}) {
   if (meta.tanggal != null) row.tanggal = meta.tanggal;
   if (meta.buktiUrls != null) row.bukti_urls = meta.buktiUrls;
   row.status = 'pending';
-  if (file) {
-    const up = await localDbUploadPengajuanFile(session.id, file);
+  if (files.rab) {
+    const up = await localDbUploadPengajuanFile(session.id, files.rab);
     row.file_name = up.name;
     row.file_url = up.url;
     row.storage_path = up.path;
     row.file_type = up.ext;
     row.file_size = up.size;
+  }
+  if (files.surat) {
+    const up = await localDbUploadPengajuanFile(session.id, files.surat, 'surat');
+    row.surat_file_name = up.name;
+    row.surat_file_url = up.url;
+    row.surat_storage_path = up.path;
+    row.surat_file_type = up.ext;
+    row.surat_file_size = up.size;
   }
   row.updated_at = new Date().toISOString();
   localDbWrite(db);

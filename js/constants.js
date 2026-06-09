@@ -5,6 +5,7 @@ const APP_LIMITS = {
   ALLOWED_TEMPLATE_EXT: ['pdf', 'xls', 'xlsx'],
   ALLOWED_SURAT_TEMPLATE_EXT: ['pdf', 'doc', 'docx'],
   ALLOWED_PENGAJUAN_EXT: ['pdf', 'xls', 'xlsx'],
+  ALLOWED_SURAT_PENGAJUAN_EXT: ['pdf', 'doc', 'docx'],
   ALLOWED_BUKTI_EXT: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
 };
 

@@ -56,6 +56,11 @@ alter table public.pengajuan add column if not exists file_url text;
 alter table public.pengajuan add column if not exists storage_path text;
 alter table public.pengajuan add column if not exists file_type text;
 alter table public.pengajuan add column if not exists file_size bigint;
+alter table public.pengajuan add column if not exists surat_file_name text;
+alter table public.pengajuan add column if not exists surat_file_url text;
+alter table public.pengajuan add column if not exists surat_storage_path text;
+alter table public.pengajuan add column if not exists surat_file_type text;
+alter table public.pengajuan add column if not exists surat_file_size bigint;
 
 -- Status revisi
 alter table public.pengajuan drop constraint if exists pengajuan_status_check;

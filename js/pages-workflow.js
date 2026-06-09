@@ -545,6 +545,7 @@ function detailInfoGridHtml(p, karyawan) {
     { label: 'Divisi / Unit', value: p.divisi || '-' },
     { label: 'Tanggal Pengajuan', value: formatDate(p.tanggal || p.createdAt) },
     { label: 'Status', html: badgeStatus(p.status) },
+    { label: 'Nama File Surat', value: p.suratFileName || '-' },
     { label: 'Nama File RAB', value: p.fileName || '-' },
   ];
   if (p.pesanAdmin) items.push({ label: 'Catatan Admin', value: p.pesanAdmin, wide: true });
@@ -571,19 +572,19 @@ function buktiGalleryHtml(urls, emptyMsg = 'Belum ada foto bukti') {
     .join('')}</div>`;
 }
 
-function rabFilePreviewHtml(p) {
-  if (!p?.fileUrl) {
-    return `<p class="text-muted empty-inline">${icon('document', 18)} Tidak ada file RAB</p>`;
+function docFilePreviewHtml(opts) {
+  const { url, fileName, fileType, fileSize, emptyLabel, downloadId } = opts;
+  if (!url) {
+    return `<p class="text-muted empty-inline">${icon('document', 18)} ${escapeHtml(emptyLabel)}</p>`;
   }
-  const url = p.fileUrl;
-  const ext = (p.fileType || getFileExt(p.fileName || '') || '').toLowerCase();
+  const ext = (fileType || getFileExt(fileName || '') || '').toLowerCase();
   const header = `
     <div class="rab-preview-header">
       <div class="rab-preview-fileinfo">
-        <strong>${escapeHtml(p.fileName || 'File RAB')}</strong>
-        <span>${fileTypeLabel(ext)} · ${formatFileSize(p.fileSize)}</span>
+        <strong>${escapeHtml(fileName || 'Dokumen')}</strong>
+        <span>${fileTypeLabel(ext)} · ${formatFileSize(fileSize)}</span>
       </div>
-      <a href="${url}" target="_blank" rel="noreferrer" class="btn btn-secondary btn-sm" download id="btnDlPengajuan">${icon('document', 14)} Unduh Asli</a>
+      <a href="${url}" target="_blank" rel="noreferrer" class="btn btn-secondary btn-sm" download${downloadId ? ` id="${downloadId}"` : ''}>${icon('document', 14)} Unduh Asli</a>
     </div>`;
 
   if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) || url.startsWith('data:image/')) {
@@ -594,7 +595,33 @@ function rabFilePreviewHtml(p) {
     return `${header}<div class="rab-file-preview rab-preview-pdf"><div class="rab-preview-pdf-frame"><iframe src="${url}#toolbar=0&navpanes=0&view=FitH" title="Preview PDF RAB" class="rab-preview-iframe"></iframe></div></div>`;
   }
 
-  return `${header}<div class="rab-file-preview rab-preview-doc"><div class="rab-preview-placeholder">${icon('document', 40)}<p>File Excel — klik <strong>Unduh Asli</strong> untuk membuka di aplikasi spreadsheet</p></div></div>`;
+  const docHint =
+    ['doc', 'docx'].includes(ext)
+      ? 'File Word — klik <strong>Unduh Asli</strong> untuk membuka di aplikasi pengolah dokumen'
+      : 'File Excel — klik <strong>Unduh Asli</strong> untuk membuka di aplikasi spreadsheet';
+  return `${header}<div class="rab-file-preview rab-preview-doc"><div class="rab-preview-placeholder">${icon('document', 40)}<p>${docHint}</p></div></div>`;
+}
+
+function rabFilePreviewHtml(p) {
+  return docFilePreviewHtml({
+    url: p?.fileUrl,
+    fileName: p?.fileName || 'File RAB',
+    fileType: p?.fileType,
+    fileSize: p?.fileSize,
+    emptyLabel: 'Tidak ada file RAB',
+    downloadId: 'btnDlPengajuan',
+  });
+}
+
+function suratFilePreviewHtml(p) {
+  return docFilePreviewHtml({
+    url: p?.suratFileUrl,
+    fileName: p?.suratFileName || 'Surat Pengajuan',
+    fileType: p?.suratFileType,
+    fileSize: p?.suratFileSize,
+    emptyLabel: 'Tidak ada file surat pengajuan',
+    downloadId: 'btnDlSurat',
+  });
 }
 
 function folderGrid(folders, baseHash, emptyMsg) {
@@ -720,7 +747,7 @@ function pageUserPengajuan(user, editId) {
       `
       <div class="alert alert-info" style="display:flex;margin-bottom:16px">
         ${icon('info', 18)}
-        <span>Belum punya template? <a href="#/user/templates">Buka Template RAB</a> untuk mengunduh.</span>
+        <span>Belum punya template? <a href="#/user/templates">Template RAB</a> · <a href="#/user/templates-surat">Template Surat</a> untuk mengunduh.</span>
       </div>
       <form id="pengajuanForm">
         <div id="formError" class="alert alert-error" style="display:none"></div>
@@ -764,6 +791,12 @@ function pageUserPengajuan(user, editId) {
             </label>
           </div>
           <div id="buktiPreview" class="bukti-preview-grid"></div>
+        </div>
+        <div class="form-group">
+          <label>${icon('document', 14)} Upload Surat Pengajuan * (${APP_LIMITS.ALLOWED_SURAT_PENGAJUAN_EXT.join(', ')})</label>
+          <p class="form-hint">Unggah surat pengajuan yang sudah diisi (unduh template di menu Template Surat)</p>
+          <input type="file" id="suratFile" class="input" accept=".pdf,.doc,.docx" ${isRevisi ? '' : 'required'} />
+          ${editing?.suratFileName ? `<p class="form-hint">File surat saat ini: ${escapeHtml(editing.suratFileName)} (${formatFileSize(editing.suratFileSize)})</p>` : ''}
         </div>
         <div class="form-group">
           <label>${icon('upload', 14)} Upload File RAB * (${APP_LIMITS.ALLOWED_PENGAJUAN_EXT.join(', ')})</label>
@@ -856,7 +889,14 @@ function bindUserPengajuan(user, editId) {
     const err = document.getElementById('formError');
     err.style.display = 'none';
     const fileInput = document.getElementById('rabFile');
+    const suratInput = document.getElementById('suratFile');
     const file = fileInput.files?.[0];
+    const suratFile = suratInput?.files?.[0];
+    if (!editing && !suratFile) {
+      err.textContent = 'Pilih file surat pengajuan';
+      err.style.display = 'flex';
+      return;
+    }
     if (!editing && !file) {
       err.textContent = 'Pilih file RAB';
       err.style.display = 'flex';
@@ -899,16 +939,24 @@ function bindUserPengajuan(user, editId) {
       }
 
       if (editing?.status === 'revisi') {
-        await apiUpdatePengajuanFile(editing.id, file, user, {
-          judul: document.getElementById('judul').value.trim(),
-          namaPengusul,
-          divisi: document.getElementById('divisi').value.trim(),
-          tanggal: document.getElementById('tanggal').value,
-          buktiUrls,
-        });
+        await apiUpdatePengajuanFile(
+          editing.id,
+          user,
+          {
+            judul: document.getElementById('judul').value.trim(),
+            namaPengusul,
+            divisi: document.getElementById('divisi').value.trim(),
+            tanggal: document.getElementById('tanggal').value,
+            buktiUrls,
+          },
+          { rab: file || null, surat: suratFile || null }
+        );
         showToast('Pengajuan revisi dikirim ulang');
       } else {
-        const uploaded = await apiUploadPengajuanFile(user.id, file);
+        const [uploadedRab, uploadedSurat] = await Promise.all([
+          apiUploadPengajuanFile(user.id, file),
+          apiUploadPengajuanSuratFile(user.id, suratFile),
+        ]);
         await apiCreatePengajuan(
           {
             userId: user.id,
@@ -918,11 +966,16 @@ function bindUserPengajuan(user, editId) {
             divisi: document.getElementById('divisi').value.trim(),
             tanggal: document.getElementById('tanggal').value,
             buktiUrls,
-            fileName: uploaded.name,
-            fileUrl: uploaded.url,
-            storagePath: uploaded.path,
-            fileType: uploaded.ext,
-            fileSize: uploaded.size,
+            fileName: uploadedRab.name,
+            fileUrl: uploadedRab.url,
+            storagePath: uploadedRab.path,
+            fileType: uploadedRab.ext,
+            fileSize: uploadedRab.size,
+            suratFileName: uploadedSurat.name,
+            suratFileUrl: uploadedSurat.url,
+            suratStoragePath: uploadedSurat.path,
+            suratFileType: uploadedSurat.ext,
+            suratFileSize: uploadedSurat.size,
           },
           user
         );
@@ -1302,6 +1355,7 @@ function pagePengajuanDetail(viewer, id, context, scope = 'admin') {
   }
 
   const karyawan = getUserById(p.userId);
+  const suratBlock = suratFilePreviewHtml(p);
   const fileBlock = rabFilePreviewHtml(p);
 
   const actions =
@@ -1328,6 +1382,7 @@ function pagePengajuanDetail(viewer, id, context, scope = 'admin') {
       <div class="detail-layout">
         ${card('Informasi Pengajuan', 'Ringkasan data pengajuan anggaran', detailInfoGridHtml(p, karyawan))}
         ${card('Foto Bukti', `${p.bukti?.length || 0} foto pendukung pengajuan`, buktiGalleryHtml(p.bukti))}
+        ${card('Surat Pengajuan', 'Dokumen surat pengajuan anggaran', suratBlock, '', { className: 'detail-card-surat' })}
         ${card('File RAB Pengajuan', 'Pratinjau dokumen rencana anggaran biaya', fileBlock, '', { className: 'detail-card-rab' })}
       </div>
     </div>`;
