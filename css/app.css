@@ -745,7 +745,7 @@ a:hover { color: var(--primary); }
   box-shadow: var(--shadow);
 }
 
-/* Cetak detail pengajuan — 3 halaman */
+/* Cetak detail pengajuan — 4 halaman tetap */
 .print-only {
   position: absolute;
   left: -9999px;
@@ -938,14 +938,53 @@ a:hover { color: var(--primary); }
   overflow: hidden;
 }
 
-.print-bukti-pages .print-page-bukti {
+.pengajuan-print-doc .print-sheet {
   page-break-after: always;
   break-after: page;
+  width: 210mm;
+  min-height: 297mm;
+  height: 297mm;
+  max-height: 297mm;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.print-bukti-pages .print-page-bukti:last-child {
+.pengajuan-print-doc .print-sheet-4 {
   page-break-after: auto;
   break-after: auto;
+}
+
+.print-bukti-single-grid {
+  display: grid;
+  gap: 4mm;
+  width: 100%;
+  height: 240mm;
+  max-height: 240mm;
+  align-content: center;
+  justify-content: center;
+  margin: 0 auto;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.print-bukti-grid-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; max-width: 140mm; }
+.print-bukti-grid-2 { grid-template-columns: repeat(2, 1fr); grid-template-rows: 1fr; }
+.print-bukti-grid-4 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+.print-bukti-grid-6 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); }
+.print-bukti-grid-9 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+.print-bukti-grid-many { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(5, 1fr); gap: 2mm; }
+
+.print-bukti-single-grid .print-bukti-figure {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 2mm;
+}
+
+.print-bukti-single-grid .print-bukti-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .print-bukti-header {
@@ -1111,16 +1150,26 @@ a:hover { color: var(--primary); }
     pointer-events: auto !important;
   }
 
-  .print-page {
-    page-break-after: always;
-    break-after: page;
-    min-height: auto;
-    padding: 0;
+  .pengajuan-print-doc .print-sheet {
+    page-break-after: always !important;
+    break-after: page !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    overflow: hidden !important;
+    padding: 12mm 14mm !important;
+    box-sizing: border-box !important;
   }
 
-  .print-page:last-child {
-    page-break-after: auto;
-    break-after: auto;
+  .pengajuan-print-doc .print-sheet-4 {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .print-page {
+    min-height: auto;
+    padding: 0;
   }
 
   .card {

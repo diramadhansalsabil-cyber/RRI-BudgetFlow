@@ -211,7 +211,7 @@ function pengajuanPrintKopSuratHtml(p, karyawan) {
   if (p.keterangan) rows.push(['Keterangan', p.keterangan]);
 
   return `
-  <section class="print-page print-page-kop">
+  <section class="print-page print-page-kop print-sheet print-sheet-1">
     <header class="kop-surat">
       <div class="kop-surat-top">
         <div class="kop-logo">
@@ -274,95 +274,63 @@ function loadBuktiImageMeta(src, index) {
   });
 }
 
-function chunkBuktiPrintPages(items) {
-  const pages = [];
-  let current = null;
-
-  for (const item of items) {
-    const orient = item.portrait ? 'portrait' : 'landscape';
-    const maxPerPage = orient === 'portrait' ? 4 : 2;
-
-    if (!current || current.orientation !== orient || current.items.length >= maxPerPage) {
-      if (current?.items.length) pages.push(current);
-      current = { orientation: orient, items: [item] };
-      continue;
-    }
-
-    current.items.push(item);
-    if (current.items.length >= maxPerPage) {
-      pages.push(current);
-      current = null;
-    }
-  }
-
-  if (current?.items.length) pages.push(current);
-  return pages;
+function buktiPrintGridClass(count) {
+  if (count <= 1) return 'print-bukti-grid-1';
+  if (count <= 2) return 'print-bukti-grid-2';
+  if (count <= 4) return 'print-bukti-grid-4';
+  if (count <= 6) return 'print-bukti-grid-6';
+  if (count <= 9) return 'print-bukti-grid-9';
+  return 'print-bukti-grid-many';
 }
 
-function buktiPrintPageHtml(page, globalOffset) {
-  const gridClass =
-    page.orientation === 'portrait' ? 'print-bukti-portrait-grid' : 'print-bukti-landscape-grid';
-  const pageClass = page.orientation === 'portrait' ? 'print-bukti-portrait' : 'print-bukti-landscape';
-  const countClass = `print-bukti-count-${page.items.length}`;
-  const figures = page.items
-    .map((item, i) => {
-      const no = globalOffset + i + 1;
-      return `<figure class="print-bukti-figure"><img src="${item.src}" alt="Foto Bukti ${no}" class="print-bukti-img" /></figure>`;
-    })
+function buildBuktiSinglePageHtml(items) {
+  const gridClass = buktiPrintGridClass(items.length);
+  const figures = items
+    .map(
+      (item, i) =>
+        `<figure class="print-bukti-figure"><img src="${item.src}" alt="Foto Bukti ${i + 1}" class="print-bukti-img" /></figure>`
+    )
     .join('');
-
-  return `<section class="print-page print-page-bukti ${pageClass}">
+  return `
     <header class="print-bukti-header"><h2>LAMPIRAN FOTO BUKTI</h2></header>
-    <div class="print-bukti-grid ${gridClass} ${countClass}">${figures}</div>
-  </section>`;
-}
-
-function buildBuktiPrintPagesHtml(items) {
-  const pages = chunkBuktiPrintPages(items);
-  let offset = 0;
-  return pages
-    .map((page) => {
-      const html = buktiPrintPageHtml(page, offset);
-      offset += page.items.length;
-      return html;
-    })
-    .join('');
+    <div class="print-bukti-single-grid ${gridClass}">${figures}</div>`;
 }
 
 function pengajuanPrintBuktiHtml(urls) {
-  if (!urls?.length) {
-    return `<div id="printBuktiPages" class="print-bukti-pages"><section class="print-page print-page-bukti"><p class="print-empty">Tidak ada foto bukti pendukung.</p></section></div>`;
-  }
-  return `<div id="printBuktiPages" class="print-bukti-pages" data-bukti-loading="1">
-    <section class="print-page print-page-bukti"><p class="print-rab-loading">${icon('pending', 18)} Memuat foto bukti...</p></section>
-  </div>`;
+  const loading = urls?.length
+    ? `<p class="print-rab-loading">${icon('pending', 18)} Memuat foto bukti...</p>`
+    : '<p class="print-empty">Tidak ada foto bukti pendukung.</p>';
+  return `
+  <section class="print-page print-page-bukti print-sheet print-sheet-3" id="printBuktiPage"${urls?.length ? ' data-bukti-loading="1"' : ''}>
+    ${loading}
+  </section>`;
 }
 
 async function renderBuktiPrintPreview(urls) {
-  const wrapper = document.getElementById('printBuktiPages');
-  if (!wrapper) return;
+  const page = document.getElementById('printBuktiPage');
+  if (!page) return;
 
   if (!urls?.length) {
-    wrapper.innerHTML = '<section class="print-page print-page-bukti"><p class="print-empty">Tidak ada foto bukti pendukung.</p></section>';
-    delete wrapper.dataset.buktiLoading;
+    page.innerHTML = '<p class="print-empty">Tidak ada foto bukti pendukung.</p>';
+    delete page.dataset.buktiLoading;
     return;
   }
 
   try {
     const items = await Promise.all(urls.map((src, index) => loadBuktiImageMeta(src, index)));
-    wrapper.innerHTML = buildBuktiPrintPagesHtml(items);
-    delete wrapper.dataset.buktiLoading;
+    page.innerHTML = buildBuktiSinglePageHtml(items);
+    delete page.dataset.buktiLoading;
   } catch (e) {
     console.warn('Bukti print preview:', e);
-    wrapper.innerHTML = `<section class="print-page print-page-bukti"><p class="print-empty">Gagal memuat foto bukti.</p></section>`;
-    delete wrapper.dataset.buktiLoading;
+    page.innerHTML = '<p class="print-empty">Gagal memuat foto bukti.</p>';
+    delete page.dataset.buktiLoading;
   }
 }
 
 function pengajuanPrintSuratHtml(p) {
   if (!p?.suratFileUrl) {
     return `
-    <section class="print-page print-page-surat">
+    <section class="print-page print-page-surat print-sheet print-sheet-2">
       <header class="print-page-header print-page-header-compact">
         <h2>LAMPIRAN SURAT PENGAJUAN</h2>
       </header>
@@ -374,7 +342,7 @@ function pengajuanPrintSuratHtml(p) {
   const ext = (p.suratFileType || getFileExt(p.suratFileName || '') || '').toLowerCase();
 
   return `
-  <section class="print-page print-page-surat">
+  <section class="print-page print-page-surat print-sheet print-sheet-2">
     <header class="print-page-header print-page-header-compact">
       <h2>LAMPIRAN SURAT PENGAJUAN</h2>
       <p>${escapeHtml(p.suratFileName || 'Surat Pengajuan')}</p>
@@ -388,7 +356,7 @@ function pengajuanPrintSuratHtml(p) {
 function pengajuanPrintRabHtml(p) {
   if (!p?.fileUrl) {
     return `
-    <section class="print-page print-page-rab">
+    <section class="print-page print-page-rab print-sheet print-sheet-4">
       <header class="print-page-header print-page-header-compact">
         <h2>LAMPIRAN RENCANA ANGGARAN BIAYA (RAB)</h2>
       </header>
@@ -400,7 +368,7 @@ function pengajuanPrintRabHtml(p) {
   const ext = (p.fileType || getFileExt(p.fileName || '') || '').toLowerCase();
 
   return `
-  <section class="print-page print-page-rab">
+  <section class="print-page print-page-rab print-sheet print-sheet-4">
     <header class="print-page-header print-page-header-compact">
       <h2>LAMPIRAN RENCANA ANGGARAN BIAYA (RAB)</h2>
     </header>
@@ -445,7 +413,7 @@ function docPrintFallbackHtml(fileName, ext) {
   </div>`;
 }
 
-async function renderFilePrintPreview(containerId, { url, fileName, fileType, imgAlt }) {
+async function renderFilePrintPreview(containerId, { url, fileName, fileType, imgAlt, imageOnly = false }) {
   const container = document.getElementById(containerId);
   if (!container || !url) return;
 
@@ -491,7 +459,9 @@ async function renderFilePrintPreview(containerId, { url, fileName, fileType, im
       return;
     } catch (e) {
       console.warn('renderFilePrintPreview pdf:', e);
-      container.innerHTML = rabPrintFallbackIframe(url);
+      container.innerHTML = imageOnly
+        ? docPrintFallbackHtml(fileName, 'pdf')
+        : rabPrintFallbackIframe(url);
       delete container.dataset.loading;
       return;
     }
@@ -516,28 +486,18 @@ async function renderRabPrintPreview(p) {
     fileName: p?.fileName,
     fileType: p?.fileType,
     imgAlt: 'Rencana Anggaran Biaya (RAB)',
+    imageOnly: true,
   });
 }
 
 async function handlePengajuanPrint(p) {
-  const buktiPages = document.getElementById('printBuktiPages');
-  if (buktiPages?.dataset.buktiLoading === '1' || buktiPages?.querySelector('.print-rab-loading')) {
-    showToast('Menyiapkan foto bukti...', 'info');
-    await renderBuktiPrintPreview(p?.bukti);
-  }
-
-  const suratContainer = document.getElementById('printSuratContainer');
-  if (suratContainer && (suratContainer.dataset.loading === '1' || suratContainer.querySelector('.print-rab-loading'))) {
-    showToast('Menyiapkan tampilan surat...', 'info');
-    await renderSuratPrintPreview(p);
-  }
-
-  const container = document.getElementById('printRabContainer');
-  if (container && (container.dataset.loading === '1' || container.querySelector('.print-rab-loading'))) {
-    showToast('Menyiapkan tampilan RAB...', 'info');
-    await renderRabPrintPreview(p);
-  }
-  await new Promise((r) => setTimeout(r, 400));
+  showToast('Menyiapkan dokumen cetak (4 halaman)...', 'info');
+  await Promise.all([
+    renderSuratPrintPreview(p),
+    renderBuktiPrintPreview(p?.bukti),
+    renderRabPrintPreview(p),
+  ]);
+  await new Promise((r) => setTimeout(r, 500));
 
   const printDoc = document.querySelector('.pengajuan-print-doc');
   if (!printDoc) {
@@ -567,6 +527,18 @@ async function handlePengajuanPrint(p) {
   <style>
     body { margin: 0; padding: 0; background: #fff; }
     .print-only { position: static !important; left: auto !important; display: block !important; width: 100% !important; visibility: visible !important; }
+    .pengajuan-print-doc .print-sheet {
+      page-break-after: always;
+      break-after: page;
+      width: 210mm;
+      min-height: 297mm;
+      height: 297mm;
+      max-height: 297mm;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    .pengajuan-print-doc .print-sheet-4 { page-break-after: auto; break-after: auto; }
+    .print-rab-img { max-height: 248mm !important; width: 100% !important; object-fit: contain !important; }
   </style>
 </head>
 <body>${printDoc.outerHTML}</body>
@@ -579,11 +551,26 @@ async function handlePengajuanPrint(p) {
   };
 
   win.addEventListener('load', () => {
-    setTimeout(() => {
-      win.focus();
-      win.print();
-      win.addEventListener('afterprint', closePrintWindow);
-    }, 350);
+    const imgs = [...win.document.images];
+    const waitImages = Promise.all(
+      imgs.map(
+        (img) =>
+          new Promise((resolve) => {
+            if (img.complete) resolve();
+            else {
+              img.addEventListener('load', resolve, { once: true });
+              img.addEventListener('error', resolve, { once: true });
+            }
+          })
+      )
+    );
+    waitImages.then(() => {
+      setTimeout(() => {
+        win.focus();
+        win.print();
+        win.addEventListener('afterprint', closePrintWindow);
+      }, 400);
+    });
   });
 }
 
@@ -1459,9 +1446,7 @@ function pageUserDetail(user, id) {
 
 function bindPengajuanDetail(id, context, user, scope = 'admin') {
   const p = getPengajuanFromStore(id);
-  if (p?.bukti?.length) {
-    renderBuktiPrintPreview(p.bukti).catch((e) => console.warn('Bukti print preview:', e));
-  }
+  renderBuktiPrintPreview(p?.bukti).catch((e) => console.warn('Bukti print preview:', e));
   if (p?.suratFileUrl) {
     renderSuratPrintPreview(p).catch((e) => console.warn('Surat print preview:', e));
   }
