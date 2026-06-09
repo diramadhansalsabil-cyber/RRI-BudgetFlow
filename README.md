@@ -30,12 +30,16 @@ Tanpa PHP. Tanpa backend Node di production.
 
 ### Vercel
 
-Set environment variables:
+1. **Environment Variables** (Settings → Environment Variables):
 
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
+| Nama | Nilai |
+|------|--------|
+| `SUPABASE_URL` | `https://xxxx.supabase.co` |
+| `SUPABASE_ANON_KEY` | anon public key dari Supabase |
 
-Deploy — build otomatis menulis `js/config.js`.
+2. **Deploy** — build hanya menulis `js/config.js` (aplikasi static, tanpa `npm install`).
+
+3. Jika deploy gagal: pastikan `vercel.json` memakai `framework: null` dan `installCommand` skip (sudah diset di repo).
 
 ---
 
