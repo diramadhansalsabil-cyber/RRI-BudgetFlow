@@ -252,7 +252,7 @@ async function render() {
       }
       renderPage(pageAdminDetail(session, id, 'pengajuan'), () => bindAdminDetail(id, 'pengajuan', session));
     } else if (route === '/admin/riwayat') {
-      renderPage(pageAdminRiwayatList(session), bindAdminRiwayatList);
+      renderPage(pageAdminRiwayatList(session), () => bindAdminRiwayatList(session));
     } else if (route.match(/^\/admin\/riwayat\/[^/]+$/)) {
       const id = route.split('/').pop();
       if (isCloudMode() && isLegacyLocalId(id)) {

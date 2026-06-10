@@ -739,6 +739,42 @@ async function apiUpdatePengajuanStatus(id, { status, pesanAdmin }, session) {
   return pengajuanFromRow(data);
 }
 
+function isRiwayatStatus(status) {
+  return status === 'approved' || status === 'rejected';
+}
+
+function canDeleteRiwayatPengajuan(p, session) {
+  if (!p || !session || !isRiwayatStatus(p.status)) return false;
+  if (session.role === 'admin') return true;
+  return p.userId === session.id;
+}
+
+async function apiDeleteRiwayatPengajuan(id, session) {
+  if (isLocalMode()) return localDbDeleteRiwayatPengajuan(id, session);
+  const p = getPengajuanFromStore(id) || (await apiFetchPengajuanById(id));
+  if (!canDeleteRiwayatPengajuan(p, session)) {
+    throw new Error('Pengajuan tidak dapat dihapus dari arsip');
+  }
+  const sb = getSupabase();
+  const { error } = await sb.from('pengajuan').delete().eq('id', id);
+  if (error) throw error;
+  await apiLogActivity(session, 'Hapus Arsip Riwayat', p.kode || id);
+  return { ok: true, id };
+}
+
+async function apiClearRiwayatPengajuan(session, items) {
+  const targets = (items || []).filter((p) => canDeleteRiwayatPengajuan(p, session));
+  if (!targets.length) return { ok: true, count: 0 };
+  if (isLocalMode()) return localDbClearRiwayatPengajuan(session, targets.map((p) => p.id));
+
+  const sb = getSupabase();
+  const ids = targets.map((p) => p.id);
+  const { error } = await sb.from('pengajuan').delete().in('id', ids);
+  if (error) throw error;
+  await apiLogActivity(session, 'Bersihkan Arsip Riwayat', `${ids.length} pengajuan`);
+  return { ok: true, count: ids.length };
+}
+
 function handleApiError(err, fallback) {
   console.error(err);
   const msg = err?.message || err?.error_description || fallback || 'Terjadi kesalahan';

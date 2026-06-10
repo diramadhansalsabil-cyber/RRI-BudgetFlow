@@ -453,6 +453,35 @@ async function localDbUpdatePengajuanFile(id, session, meta = {}, files = {}) {
   return pengajuanFromRow(row);
 }
 
+function localDbDeleteRiwayatPengajuan(id, session) {
+  const db = localDbRead();
+  const row = db.pengajuan.find((p) => p.id === id);
+  if (!row || !isRiwayatStatus(row.status)) throw new Error('Pengajuan tidak dapat dihapus dari arsip');
+  if (session.role !== 'admin' && row.user_id !== session.id) {
+    throw new Error('Tidak memiliki akses menghapus arsip ini');
+  }
+  db.pengajuan = db.pengajuan.filter((p) => p.id !== id);
+  localDbWrite(db);
+  localDbLog(session, 'Hapus Arsip Riwayat', row.kode || id);
+  return { ok: true, id };
+}
+
+function localDbClearRiwayatPengajuan(session, ids) {
+  const db = localDbRead();
+  const idSet = new Set(ids || []);
+  const before = db.pengajuan.length;
+  db.pengajuan = db.pengajuan.filter((p) => {
+    if (!idSet.has(p.id)) return true;
+    if (!isRiwayatStatus(p.status)) return true;
+    if (session.role !== 'admin' && p.user_id !== session.id) return true;
+    return false;
+  });
+  const removed = before - db.pengajuan.length;
+  localDbWrite(db);
+  if (removed) localDbLog(session, 'Bersihkan Arsip Riwayat', `${removed} pengajuan`);
+  return { ok: true, count: removed };
+}
+
 function localDbUpdatePengajuanStatus(id, { status, pesanAdmin }, session) {
   const db = localDbRead();
   const row = db.pengajuan.find((p) => p.id === id);

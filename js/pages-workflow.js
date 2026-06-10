@@ -1277,12 +1277,14 @@ function riwayatToolbarHtml(filterId, searchId) {
 }
 
 function pageAdminRiwayatList(user) {
+  const clearBtn = `<button type="button" class="btn btn-danger btn-sm" id="btnClearRiwayat">${icon('remove', 14)} Bersihkan Arsip</button>`;
   const content = card(
     'Arsip Keputusan',
     'Pengajuan yang sudah diproses',
     `
     ${riwayatToolbarHtml('riwayatFilterTabs', 'riwayatSearchPengusul')}
-    <div id="riwayatTable"></div>`
+    <div id="riwayatTable"></div>`,
+    clearBtn
   );
   return renderLayout(user, 'Riwayat', getNavItems('admin', '/admin/riwayat'), content);
 }
@@ -1309,37 +1311,85 @@ function pengajuanTableCols(reviewOnly, basePath = '/admin') {
   return cols;
 }
 
+function pengajuanRiwayatTableCols(basePath = '/admin') {
+  return [
+    { label: 'No. Pengajuan', render: (r) => `<span class="mono">${displayPengajuanId(r)}</span>` },
+    { label: 'Pengusul', render: (r) => escapeHtml(getPengusulNama(r)) },
+    { label: 'Divisi', render: (r) => escapeHtml(r.divisi || '-') },
+    { label: 'Judul', render: (r) => escapeHtml(r.judul || '-') },
+    { label: 'Tanggal', render: (r) => formatDate(r.tanggal || r.createdAt) },
+    { label: 'Status', render: (r) => badgeStatus(r.status) },
+    {
+      label: 'Aksi',
+      render: (r) => `
+        <div class="table-actions">
+          <a href="#${basePath}/riwayat/${r.id}" class="btn btn-secondary btn-sm">${icon('eye', 14)} Detail</a>
+          <button type="button" class="btn btn-danger btn-sm riwayat-del" data-id="${r.id}" title="Hapus dari arsip">${icon('remove', 14)} Hapus</button>
+        </div>`,
+    },
+  ];
+}
+
 function userRiwayatPengajuan(user) {
   return filterRiwayatPengajuan(getDB().pengajuan).filter((p) => p.userId === user.id);
 }
 
 function pageUserRiwayatList(user) {
+  const clearBtn = `<button type="button" class="btn btn-danger btn-sm" id="btnClearUserRiwayat">${icon('remove', 14)} Bersihkan Arsip</button>`;
   const content = card(
     'Arsip Keputusan',
     'Riwayat pengajuan Anda yang sudah diproses',
     `
     ${riwayatToolbarHtml('userRiwayatFilterTabs', 'userRiwayatSearchPengusul')}
-    <div id="userRiwayatTable"></div>`
+    <div id="userRiwayatTable"></div>`,
+    clearBtn
   );
   return renderLayout(user, 'Riwayat', getNavItems('user', '/user/riwayat'), content);
 }
 
 function bindRiwayatListDraw(opts) {
-  const { getItems, tableId, filterTabsId, searchId, cols, defaultEmpty } = opts;
+  const { getItems, tableId, filterTabsId, searchId, cols, defaultEmpty, user, clearBtnId } = opts;
   let filter = 'all';
   let searchQuery = '';
 
-  const draw = () => {
+  const getFilteredItems = () => {
     let items = getItems();
     if (filter === 'approved') items = items.filter((p) => p.status === 'approved');
     if (filter === 'rejected') items = items.filter((p) => p.status === 'rejected');
-    items = filterPengajuanByPengusul(items, searchQuery);
+    return filterPengajuanByPengusul(items, searchQuery);
+  };
+
+  const draw = () => {
+    const items = getFilteredItems();
     const emptyMsg =
       searchQuery.trim() && items.length === 0 ? 'Data pengusul tidak ditemukan.' : defaultEmpty;
     const el = document.getElementById(tableId);
     if (el) {
       el.innerHTML = table(cols, items, emptyMsg);
       refreshIcons(el);
+      el.querySelectorAll('.riwayat-del').forEach((btn) => {
+        btn.onclick = async () => {
+          const id = btn.dataset.id;
+          const row = getPengajuanFromStore(id);
+          if (!confirm(`Hapus pengajuan ${displayPengajuanId(row || { id })} dari arsip?\n\nTindakan ini tidak dapat dibatalkan.`)) {
+            return;
+          }
+          try {
+            await apiDeleteRiwayatPengajuan(id, user);
+            removePengajuanFromStore(id);
+            showToast('Pengajuan dihapus dari arsip');
+            draw();
+          } catch (e) {
+            handleApiError(e);
+          }
+        };
+      });
+    }
+    const clearBtn = clearBtnId ? document.getElementById(clearBtnId) : null;
+    if (clearBtn) {
+      const hasItems = getItems().length > 0;
+      clearBtn.disabled = !hasItems;
+      clearBtn.style.opacity = hasItems ? '1' : '0.5';
     }
   };
 
@@ -1361,6 +1411,31 @@ function bindRiwayatListDraw(opts) {
       draw();
     });
   }
+
+  if (clearBtnId) {
+    document.getElementById(clearBtnId)?.addEventListener('click', async () => {
+      const items = getFilteredItems();
+      if (!items.length) {
+        showToast('Tidak ada arsip untuk dihapus', 'info');
+        return;
+      }
+      if (
+        !confirm(
+          `Bersihkan ${items.length} pengajuan dari arsip riwayat?\n\nHanya data yang tampil (sesuai filter/pencarian) yang dihapus.\nTindakan ini tidak dapat dibatalkan.`
+        )
+      ) {
+        return;
+      }
+      try {
+        const result = await apiClearRiwayatPengajuan(user, items);
+        removePengajuanManyFromStore(items.map((p) => p.id));
+        showToast(`${result.count || items.length} pengajuan dihapus dari arsip`);
+        draw();
+      } catch (e) {
+        handleApiError(e);
+      }
+    });
+  }
 }
 
 function bindUserRiwayatList(user) {
@@ -1369,19 +1444,23 @@ function bindUserRiwayatList(user) {
     tableId: 'userRiwayatTable',
     filterTabsId: 'userRiwayatFilterTabs',
     searchId: 'userRiwayatSearchPengusul',
-    cols: pengajuanTableCols(false, '/user'),
+    cols: pengajuanRiwayatTableCols('/user'),
     defaultEmpty: 'Belum ada arsip pengajuan',
+    user,
+    clearBtnId: 'btnClearUserRiwayat',
   });
 }
 
-function bindAdminRiwayatList() {
+function bindAdminRiwayatList(user) {
   bindRiwayatListDraw({
     getItems: () => filterRiwayatPengajuan(getDB().pengajuan),
     tableId: 'riwayatTable',
     filterTabsId: 'riwayatFilterTabs',
     searchId: 'riwayatSearchPengusul',
-    cols: pengajuanTableCols(false),
+    cols: pengajuanRiwayatTableCols('/admin'),
     defaultEmpty: 'Belum ada arsip',
+    user,
+    clearBtnId: 'btnClearRiwayat',
   });
 }
 

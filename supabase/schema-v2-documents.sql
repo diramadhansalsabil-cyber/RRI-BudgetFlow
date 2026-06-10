@@ -116,6 +116,14 @@ drop policy if exists "pengajuan_update" on public.pengajuan;
 create policy "pengajuan_update" on public.pengajuan for update to authenticated
   using (public.is_admin() or (user_id = auth.uid() and status = 'revisi'));
 
+-- Pengajuan: hapus arsip riwayat (disetujui / ditolak)
+drop policy if exists "pengajuan_delete_riwayat" on public.pengajuan;
+create policy "pengajuan_delete_riwayat" on public.pengajuan for delete to authenticated
+  using (
+    status in ('approved', 'rejected')
+    and (public.is_admin() or user_id = auth.uid())
+  );
+
 -- ─── Storage: rab-templates & rab-pengajuan ───
 insert into storage.buckets (id, name, public)
 values ('rab-templates', 'rab-templates', true)

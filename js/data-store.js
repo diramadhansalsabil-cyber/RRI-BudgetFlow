@@ -54,6 +54,15 @@ function patchPengajuanInStore(updated) {
   else _store.pengajuan.unshift(updated);
 }
 
+function removePengajuanFromStore(id) {
+  _store.pengajuan = _store.pengajuan.filter((p) => p.id !== id);
+}
+
+function removePengajuanManyFromStore(ids) {
+  const set = new Set(ids);
+  _store.pengajuan = _store.pengajuan.filter((p) => !set.has(p.id));
+}
+
 function patchFolderInStore(updated) {
   const idx = _store.folders.findIndex((f) => f.id === updated.id);
   if (idx >= 0) _store.folders[idx] = updated;

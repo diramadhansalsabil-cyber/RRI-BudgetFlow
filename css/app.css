@@ -1354,6 +1354,13 @@ a:hover { color: var(--primary); }
 /* Filters */
 .filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
 
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
 .riwayat-toolbar {
   display: flex;
   flex-direction: column;
