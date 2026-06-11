@@ -103,15 +103,43 @@ const DEMO_LOGIN_EMAILS = {
   user: 'user@rribudgetflow.test',
 };
 
+const FILE_EXT_FROM_MIME = {
+  'application/pdf': 'pdf',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+};
+
+const FILE_MIME_FROM_EXT = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
 function getFileExt(name) {
   const m = (name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
   return m ? m[1] : '';
 }
 
+function resolveUploadFileExt(file, allowedExt) {
+  const fromName = getFileExt(file?.name);
+  if (fromName && allowedExt.includes(fromName)) return fromName;
+  const fromMime = FILE_EXT_FROM_MIME[(file?.type || '').toLowerCase()];
+  if (fromMime && allowedExt.includes(fromMime)) return fromMime;
+  return fromName || fromMime || '';
+}
+
+function getUploadContentType(file, ext) {
+  return FILE_MIME_FROM_EXT[ext] || file?.type || 'application/octet-stream';
+}
+
 function validateUploadFile(file, allowedExt, maxMb = APP_LIMITS.MAX_FILE_MB) {
-  const ext = getFileExt(file.name);
-  if (!allowedExt.includes(ext)) {
-    return { ok: false, message: `Format .${ext || '?'} tidak diizinkan. Gunakan: ${allowedExt.join(', ')}` };
+  const ext = resolveUploadFileExt(file, allowedExt);
+  if (!ext || !allowedExt.includes(ext)) {
+    return { ok: false, message: `Format file tidak diizinkan. Gunakan: ${allowedExt.join(', ')}` };
   }
   const max = maxMb * 1024 * 1024;
   if (file.size > max) {
@@ -511,13 +539,17 @@ async function apiFetchAllTemplateFiles() {
   return (data || []).map(templateFileFromRow);
 }
 
-async function apiUploadTemplateFile(folderId, file, session) {
-  if (isLocalMode()) return localDbUploadTemplateFile(folderId, file, session);
-  const v = validateUploadFile(file, getAllowedTemplateExtForFolder(folderId));
+async function apiUploadTemplateFile(folderId, file, session, allowedExt = null) {
+  if (isLocalMode()) return localDbUploadTemplateFile(folderId, file, session, allowedExt);
+  const extList = allowedExt || getAllowedTemplateExtForFolder(folderId);
+  const v = validateUploadFile(file, extList);
   if (!v.ok) throw new Error(v.message);
   const sb = getSupabase();
   const path = `${folderId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-  const { error: upErr } = await sb.storage.from(STORAGE_BUCKETS.templates).upload(path, file, { upsert: false });
+  const contentType = getUploadContentType(file, v.ext);
+  const { error: upErr } = await sb.storage
+    .from(STORAGE_BUCKETS.templates)
+    .upload(path, file, { upsert: false, contentType });
   if (upErr) throw upErr;
   const { data: urlData } = sb.storage.from(STORAGE_BUCKETS.templates).getPublicUrl(path);
   const { data, error } = await sb
@@ -539,15 +571,19 @@ async function apiUploadTemplateFile(folderId, file, session) {
   return templateFileFromRow(data);
 }
 
-async function apiReplaceTemplateFile(fileId, file, session) {
-  if (isLocalMode()) return localDbReplaceTemplateFile(fileId, file, session);
+async function apiReplaceTemplateFile(fileId, file, session, allowedExt = null) {
+  if (isLocalMode()) return localDbReplaceTemplateFile(fileId, file, session, allowedExt);
   const sb = getSupabase();
   const { data: old, error: oldErr } = await sb.from('template_files').select('*').eq('id', fileId).single();
   if (oldErr) throw oldErr;
-  const v = validateUploadFile(file, getAllowedTemplateExtForFolder(old.folder_id));
+  const extList = allowedExt || getAllowedTemplateExtForFolder(old.folder_id);
+  const v = validateUploadFile(file, extList);
   if (!v.ok) throw new Error(v.message);
   const path = `${old.folder_id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-  const { error: upErr } = await sb.storage.from(STORAGE_BUCKETS.templates).upload(path, file, { upsert: false });
+  const contentType = getUploadContentType(file, v.ext);
+  const { error: upErr } = await sb.storage
+    .from(STORAGE_BUCKETS.templates)
+    .upload(path, file, { upsert: false, contentType });
   if (upErr) throw upErr;
   const { data: urlData } = sb.storage.from(STORAGE_BUCKETS.templates).getPublicUrl(path);
   const { data, error } = await sb
@@ -618,7 +654,8 @@ async function apiUploadPengajuanFile(userId, file, subfolder = 'rab') {
   const sb = getSupabase();
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `${userId}/${subfolder}/${Date.now()}-${safeName}`;
-  const { error } = await sb.storage.from(STORAGE_BUCKETS.pengajuan).upload(path, file, { upsert: false });
+  const contentType = getUploadContentType(file, v.ext);
+  const { error } = await sb.storage.from(STORAGE_BUCKETS.pengajuan).upload(path, file, { upsert: false, contentType });
   if (error) throw error;
   const { data } = sb.storage.from(STORAGE_BUCKETS.pengajuan).getPublicUrl(path);
   return { path, url: data.publicUrl, ext: v.ext, size: file.size, name: file.name };

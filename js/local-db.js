@@ -261,8 +261,8 @@ async function localDbUploadPengajuanFile(userId, file, subfolder = 'rab') {
   return { path: `local/${userId}/${subfolder}/${file.name}`, url, ext: v.ext, size: file.size, name: file.name };
 }
 
-async function localDbUploadTemplateFile(folderId, file, session) {
-  const v = validateUploadFile(file, getAllowedTemplateExtForFolder(folderId));
+async function localDbUploadTemplateFile(folderId, file, session, allowedExt = null) {
+  const v = validateUploadFile(file, allowedExt || getAllowedTemplateExtForFolder(folderId));
   if (!v.ok) throw new Error(v.message);
   const url = await localFileToDataUrl(file, APP_LIMITS.MAX_FILE_MB);
   const db = localDbRead();
@@ -357,11 +357,11 @@ function localDbDeleteFolder(id, session) {
   localDbLog(session, 'Hapus Folder Template', id);
 }
 
-function localDbReplaceTemplateFile(fileId, file, session) {
+function localDbReplaceTemplateFile(fileId, file, session, allowedExt = null) {
   const db = localDbRead();
   const old = db.templateFiles.find((f) => f.id === fileId);
   if (!old) throw new Error('File tidak ditemukan');
-  const v = validateUploadFile(file, getAllowedTemplateExtForFolder(old.folder_id));
+  const v = validateUploadFile(file, allowedExt || getAllowedTemplateExtForFolder(old.folder_id));
   if (!v.ok) throw new Error(v.message);
   return localFileToDataUrl(file, APP_LIMITS.MAX_FILE_MB).then((url) => {
     old.nama_file = file.name;

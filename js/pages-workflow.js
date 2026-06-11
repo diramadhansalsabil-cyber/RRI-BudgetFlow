@@ -916,7 +916,7 @@ function pageUserPengajuan(user, editId) {
         <div class="form-group">
           <label>${icon('document', 14)} Upload Surat Pengajuan * (${APP_LIMITS.ALLOWED_SURAT_PENGAJUAN_EXT.join(', ')})</label>
           <p class="form-hint">Unggah surat pengajuan yang sudah diisi (unduh template di menu Template Surat)</p>
-          <input type="file" id="suratFile" class="input" accept=".pdf,.doc,.docx" ${isRevisi ? '' : 'required'} />
+          <input type="file" id="suratFile" class="input" accept="${getTemplateKind('surat').accept}" ${isRevisi ? '' : 'required'} />
           ${editing?.suratFileName ? `<p class="form-hint">File surat saat ini: ${escapeHtml(editing.suratFileName)} (${formatFileSize(editing.suratFileSize)})</p>` : ''}
         </div>
         <div class="form-group">
@@ -1216,7 +1216,11 @@ function pageAdminTemplateFolder(user, folderId, kindKey = 'rab') {
         </label>
       </div>
     </div>
-    ${card('File Template', `${kind.fileTypes} — maks ${APP_LIMITS.MAX_FILE_MB} MB per file`, table(cols, files, 'Belum ada file. Klik Upload File.'))}`;
+    ${card(
+      'File Template',
+      `${kind.fileTypes} — maks ${APP_LIMITS.MAX_FILE_MB} MB per file${kind.key === 'surat' ? ' · Mendukung Microsoft Word (.doc, .docx)' : ''}`,
+      table(cols, files, 'Belum ada file. Klik Upload File.')
+    )}`;
   return renderLayout(user, folder.nama, getNavItems('admin', kind.adminRoute), content);
 }
 
@@ -1226,7 +1230,7 @@ function bindAdminTemplateFolder(user, folderId, kindKey = 'rab') {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const row = await apiUploadTemplateFile(folderId, file, user);
+      const row = await apiUploadTemplateFile(folderId, file, user, kind.allowedExt);
       patchTemplateFileInStore(row);
       showToast('File diunggah');
       await render();
@@ -1284,7 +1288,7 @@ function bindAdminTemplateFolder(user, folderId, kindKey = 'rab') {
         const file = input.files?.[0];
         if (!file) return;
         try {
-          const row = await apiReplaceTemplateFile(btn.dataset.id, file, user);
+          const row = await apiReplaceTemplateFile(btn.dataset.id, file, user, kind.allowedExt);
           patchTemplateFileInStore(row);
           showToast('File diganti');
           await render();
