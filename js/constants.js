@@ -1,3 +1,8 @@
+/** Hanya ekstensi — lebih andal di mobile daripada daftar MIME panjang */
+function extensionsToAccept(extList) {
+  return extList.map((e) => `.${e}`).join(',');
+}
+
 const APP_LIMITS = {
   MAX_FILE_MB: 10,
   MAX_BUKTI_MB: 5,
@@ -23,7 +28,7 @@ const TEMPLATE_KINDS = {
     adminRoute: '/admin/templates',
     userRoute: '/user/templates',
     allowedExt: ['pdf', 'xls', 'xlsx', 'doc', 'docx'],
-    accept: '.pdf,.xls,.xlsx,.doc,.docx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    accept: extensionsToAccept(['pdf', 'xls', 'xlsx', 'doc', 'docx']),
     adminTitle: 'Kelola Folder Template RAB',
     adminSubtitle: 'Buat kategori folder lalu unggah file RAB (PDF, Excel, atau Word)',
     userTitle: 'Unduh Template RAB',
@@ -43,7 +48,7 @@ const TEMPLATE_KINDS = {
     adminRoute: '/admin/templates-surat',
     userRoute: '/user/templates-surat',
     allowedExt: ['pdf', 'doc', 'docx'],
-    accept: '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    accept: extensionsToAccept(['pdf', 'doc', 'docx']),
     adminTitle: 'Kelola Template Surat Pengajuan',
     adminSubtitle: 'Buat folder kategori lalu unggah file surat pengajuan (Word/PDF)',
     userTitle: 'Unduh Template Surat Pengajuan',

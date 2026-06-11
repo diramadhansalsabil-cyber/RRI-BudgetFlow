@@ -1104,13 +1104,15 @@ function pageUserPengajuan(user, editId) {
         <div class="form-group">
           <label>${icon('document', 14)} Upload Surat Pengajuan * (${APP_LIMITS.ALLOWED_SURAT_PENGAJUAN_EXT.join(', ')})</label>
           <p class="form-hint">Unggah surat pengajuan yang sudah diisi (unduh template di menu Template Surat)</p>
-          <input type="file" id="suratFile" class="input" accept="${getTemplateKind('surat').accept}" ${isRevisi ? '' : 'required'} />
+          <p class="form-hint">Format: PDF, Word (.doc, .docx). Jika hanya PDF yang muncul, pilih <strong>Semua file</strong> / <strong>Browse</strong> di pemilih file.</p>
+          <input type="file" id="suratFile" class="input" ${isRevisi ? '' : 'required'} />
           ${editing?.suratFileName ? `<p class="form-hint">File surat saat ini: ${escapeHtml(editing.suratFileName)} (${formatFileSize(editing.suratFileSize)})</p>` : ''}
         </div>
         <div class="form-group">
           <label>${icon('upload', 14)} Upload File RAB (Opsional) (${APP_LIMITS.ALLOWED_PENGAJUAN_EXT.join(', ')})</label>
           <p class="form-hint">Lampirkan file RAB jika sudah tersedia. Pengajuan tetap dapat dikirim tanpa file RAB.</p>
-          <input type="file" id="rabFile" class="input" accept="${getTemplateKind('rab').accept}" />
+          <p class="form-hint">Format: PDF, Excel (.xls, .xlsx), Word (.doc, .docx). Jika hanya PDF yang muncul, pilih <strong>Semua file</strong> di pemilih file.</p>
+          <input type="file" id="rabFile" class="input" />
           ${editing?.fileName ? `<p class="form-hint">File saat ini: ${escapeHtml(editing.fileName)} (${formatFileSize(editing.fileSize)})</p>` : ''}
         </div>
         <div class="submit-actions">
@@ -1206,6 +1208,22 @@ function bindUserPengajuan(user, editId) {
       err.textContent = 'Pilih file surat pengajuan';
       err.style.display = 'flex';
       return;
+    }
+    if (suratFile) {
+      const vSurat = validateUploadFile(suratFile, APP_LIMITS.ALLOWED_SURAT_PENGAJUAN_EXT);
+      if (!vSurat.ok) {
+        err.textContent = `Surat: ${vSurat.message}`;
+        err.style.display = 'flex';
+        return;
+      }
+    }
+    if (file) {
+      const vRab = validateUploadFile(file, APP_LIMITS.ALLOWED_PENGAJUAN_EXT);
+      if (!vRab.ok) {
+        err.textContent = `RAB: ${vRab.message}`;
+        err.style.display = 'flex';
+        return;
+      }
     }
     if (!editing) {
       const kode = normalizeKode(document.getElementById('kode')?.value);
