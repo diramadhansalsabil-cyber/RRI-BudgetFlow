@@ -763,11 +763,16 @@ a:hover { color: var(--primary); }
 
 .print-page {
   box-sizing: border-box;
-  padding: 12mm 14mm;
+  padding: 10mm 12mm;
   background: #fff;
-  width: 100%;
-  max-width: 210mm;
-  margin: 0 auto;
+  width: 210mm;
+  height: 297mm;
+  min-height: 297mm;
+  max-height: 297mm;
+  margin: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .print-page-kop {
@@ -969,9 +974,12 @@ a:hover { color: var(--primary); }
 }
 
 .print-pdf-page-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
+  overflow: hidden;
 }
 
 .print-pdf-pages,
@@ -982,10 +990,10 @@ a:hover { color: var(--primary); }
 
 .print-pdf-img {
   display: block;
-  width: 100%;
-  max-width: 182mm;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
-  max-height: none;
   object-fit: contain;
   margin: 0 auto;
 }
@@ -1006,15 +1014,18 @@ a:hover { color: var(--primary); }
 }
 
 .print-bukti-photo-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
+  overflow: hidden;
 }
 
 .print-bukti-figure-full {
-  margin: 0 auto;
+  margin: 0;
   width: 100%;
-  max-width: 182mm;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1024,9 +1035,10 @@ a:hover { color: var(--primary); }
 }
 
 .print-bukti-img-full {
-  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
-  max-height: none;
   object-fit: contain;
   display: block;
 }
@@ -1234,19 +1246,24 @@ a:hover { color: var(--primary); }
 
   .print-page,
   .print-pdf-page {
-    min-height: auto;
-    padding: 12mm 14mm !important;
     width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    margin: 0 !important;
+    padding: 10mm 12mm !important;
     box-sizing: border-box !important;
+    overflow: hidden !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
-  .print-pdf-img {
-    width: 100% !important;
-    max-width: 182mm !important;
+  .print-pdf-img,
+  .print-bukti-img-full {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: auto !important;
     height: auto !important;
-    max-height: none !important;
     object-fit: contain !important;
   }
 

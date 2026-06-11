@@ -384,10 +384,17 @@ async function fetchPdfDocument(url) {
   }
 }
 
-async function pdfPageToImageDataUrl(pdf, pageNum, targetWidth = 760) {
+const PRINT_IMG_MAX_WIDTH_PX = 680;
+const PRINT_IMG_MAX_HEIGHT_PX = 900;
+
+async function pdfPageToImageDataUrl(pdf, pageNum) {
   const page = await pdf.getPage(pageNum);
   const baseViewport = page.getViewport({ scale: 1 });
-  const scale = targetWidth / baseViewport.width;
+  const scale = Math.min(
+    PRINT_IMG_MAX_WIDTH_PX / baseViewport.width,
+    PRINT_IMG_MAX_HEIGHT_PX / baseViewport.height,
+    2.5
+  );
   const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -395,6 +402,73 @@ async function pdfPageToImageDataUrl(pdf, pageNum, targetWidth = 760) {
   canvas.height = viewport.height;
   await page.render({ canvasContext: ctx, viewport }).promise;
   return canvas.toDataURL('image/jpeg', 0.92);
+}
+
+function getPengajuanPrintCss() {
+  return `
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #fff; }
+    .pengajuan-print-doc { margin: 0; padding: 0; width: 210mm; color: #000; font-family: 'Times New Roman', Times, serif; }
+    .print-pdf-pages, .print-bukti-pages { display: block; margin: 0; padding: 0; }
+    .print-page {
+      width: 210mm;
+      height: 297mm;
+      min-height: 297mm;
+      max-height: 297mm;
+      margin: 0;
+      padding: 10mm 12mm;
+      background: #fff;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .print-page-break { break-after: page; page-break-after: always; }
+    .print-page-kop { font-family: Arial, Helvetica, sans-serif; }
+    .kop-surat { margin-bottom: 4mm; flex-shrink: 0; }
+    .kop-surat-top { display: flex; align-items: center; gap: 5mm; margin-bottom: 3mm; }
+    .kop-logo { flex: 0 0 38mm; }
+    .kop-logo-img { width: 36mm; height: auto; display: block; }
+    .kop-text { flex: 1; text-align: center; padding-right: 38mm; }
+    .kop-line { margin: 0; font-size: 11pt; font-weight: 700; color: #444; line-height: 1.4; text-transform: uppercase; }
+    .kop-line-full { border: none; border-top: 2px solid #000; margin: 0; }
+    .print-doc-body { flex: 1; min-height: 0; overflow: hidden; }
+    .print-doc-title { text-align: center; font-size: 12pt; font-weight: 700; margin: 0 0 4mm; text-decoration: underline; text-transform: uppercase; }
+    .print-doc-subtitle { text-align: center; font-size: 10pt; margin: 0 0 5mm; }
+    .print-info-table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+    .print-info-table th, .print-info-table td { border: 1px solid #000; padding: 6px 8px; vertical-align: top; }
+    .print-info-table thead th { font-weight: 700; text-align: center; }
+    .print-col-label { width: 38%; font-weight: 600; }
+    .print-doc-footer { margin-top: 5mm; font-size: 9pt; text-align: right; }
+    .print-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; margin-top: 8mm; text-align: center; }
+    .print-sign-title { margin: 0; font-size: 9pt; font-weight: 600; }
+    .print-sign-line { margin-top: 16mm; border-bottom: 1px dotted #000; }
+    .print-pdf-page-header, .print-bukti-header { flex-shrink: 0; text-align: center; margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 1px solid #000; }
+    .print-pdf-page-header h2, .print-bukti-header h2 { margin: 0 0 2px; font-size: 11pt; font-weight: 700; text-transform: uppercase; }
+    .print-pdf-page-header p, .print-bukti-header p { margin: 0; font-size: 8pt; }
+    .print-pdf-page-header--sub, .print-bukti-header--sub { margin-bottom: 3mm; }
+    .print-pdf-page-body, .print-bukti-photo-body {
+      flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .print-pdf-img, .print-bukti-img-full {
+      display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; margin: 0 auto;
+    }
+    .print-bukti-figure-full { margin: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd; padding: 2mm; background: #fafafa; }
+    .print-rab-loading, .print-empty, .print-rab-fallback { font-size: 10pt; color: #666; text-align: center; margin: auto; }
+    .print-empty, .print-rab-fallback { border: 1px dashed #999; padding: 10mm; }
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+      .print-page {
+        width: 210mm !important; height: 297mm !important; min-height: 297mm !important; max-height: 297mm !important;
+        margin: 0 !important; padding: 10mm 12mm !important; overflow: hidden !important;
+        break-inside: avoid !important; page-break-inside: avoid !important;
+      }
+      .print-page-break { break-after: page !important; page-break-after: always !important; }
+      .print-pdf-img, .print-bukti-img-full { max-width: 100% !important; max-height: 100% !important; }
+      .kop-logo-img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  `;
 }
 
 function buildPdfPageSectionHtml({ sectionTitle, fileName, pageNum, total, dataUrl, imgAlt }) {
@@ -519,10 +593,11 @@ async function handlePengajuanPrint(p) {
     return;
   }
 
-  const styles = [...document.querySelectorAll('link[rel="stylesheet"]')]
-    .map((link) => `<link rel="stylesheet" href="${link.href}" />`)
-    .join('');
   const base = document.baseURI.replace(/[^/]+$/, '');
+  const printClone = printDoc.cloneNode(true);
+  printClone.classList.remove('print-only');
+  printClone.removeAttribute('aria-hidden');
+  const printHtml = printClone.outerHTML;
 
   const win = window.open('', '_blank');
   if (!win) {
@@ -537,35 +612,9 @@ async function handlePengajuanPrint(p) {
   <meta charset="UTF-8" />
   <title>Cetak Pengajuan</title>
   <base href="${base}" />
-  ${styles}
-  <style>
-    body { margin: 0; padding: 0; background: #fff; }
-    .print-only { position: static !important; left: auto !important; display: block !important; width: 100% !important; visibility: visible !important; }
-    .pengajuan-print-doc { font-family: 'Times New Roman', Times, serif; color: #000; }
-    .print-page { box-sizing: border-box; padding: 12mm 14mm; width: 210mm; margin: 0 auto; background: #fff; }
-    .print-page-break { page-break-after: always; break-after: page; }
-    .print-pdf-pages, .print-bukti-pages { display: block; width: 100%; }
-    .print-pdf-page-header { text-align: center; margin-bottom: 5mm; border-bottom: 1px solid #000; padding-bottom: 3mm; }
-    .print-pdf-page-header h2 { margin: 0 0 4px; font-size: 12pt; font-weight: 700; text-transform: uppercase; }
-    .print-pdf-page-header p { margin: 0; font-size: 9pt; }
-    .print-pdf-img { width: 100%; max-width: 182mm; height: auto; max-height: none; object-fit: contain; display: block; margin: 0 auto; }
-    .print-pdf-page-body { display: flex; justify-content: center; align-items: flex-start; }
-    .print-bukti-header { text-align: center; margin: 0 0 6mm; border-bottom: 1px solid #000; padding-bottom: 3mm; }
-    .print-bukti-header h2 { margin: 0 0 4px; font-size: 12pt; font-weight: 700; text-transform: uppercase; }
-    .print-bukti-header p { margin: 0; font-size: 9pt; }
-    .print-bukti-header--sub { margin-bottom: 4mm; }
-    .print-bukti-photo-body { display: flex; justify-content: center; align-items: flex-start; min-height: 0; }
-    .print-bukti-figure-full { margin: 0; width: 100%; max-width: 182mm; display: flex; align-items: center; justify-content: center; border: 1px solid #d4d4d4; padding: 3mm; background: #f5f5f5; }
-    .print-bukti-img-full { width: 100%; height: auto; max-height: none; object-fit: contain; display: block; }
-    @media print {
-      @page { size: A4 portrait; margin: 0; }
-      .print-page-break { page-break-after: always !important; break-after: page !important; }
-      .print-page { page-break-inside: avoid !important; break-inside: avoid !important; }
-      .print-pdf-img { max-height: none !important; }
-    }
-  </style>
+  <style>${getPengajuanPrintCss()}</style>
 </head>
-<body>${printDoc.outerHTML}</body>
+<body>${printHtml}</body>
 </html>`);
   win.document.close();
 
@@ -589,6 +638,7 @@ async function handlePengajuanPrint(p) {
       )
     );
     waitImages.then(() => {
+      finalizePrintPageBreaks(win.document.querySelector('.pengajuan-print-doc'));
       setTimeout(() => {
         win.focus();
         win.print();
