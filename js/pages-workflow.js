@@ -211,7 +211,7 @@ function pengajuanPrintKopSuratHtml(p, karyawan) {
   if (p.keterangan) rows.push(['Keterangan', p.keterangan]);
 
   return `
-  <section class="print-page print-page-kop print-page-break">
+  <section class="print-page print-page-kop" data-print-section="INFORMASI PENGAJUAN">
     <header class="kop-surat">
       <div class="kop-surat-top">
         <div class="kop-logo">
@@ -274,61 +274,62 @@ function loadBuktiImageMeta(src, index) {
   });
 }
 
-function buktiPrintGridClass(count) {
-  if (count <= 1) return 'print-bukti-grid-1';
-  if (count <= 2) return 'print-bukti-grid-2';
-  if (count <= 4) return 'print-bukti-grid-4';
-  if (count <= 6) return 'print-bukti-grid-6';
-  if (count <= 9) return 'print-bukti-grid-9';
-  return 'print-bukti-grid-many';
-}
-
-function buildBuktiSinglePageHtml(items) {
-  const gridClass = buktiPrintGridClass(items.length);
-  const figures = items
-    .map(
-      (item, i) =>
-        `<figure class="print-bukti-figure"><img src="${item.src}" alt="Foto Bukti ${i + 1}" class="print-bukti-img" /></figure>`
-    )
-    .join('');
-  return `
-    <header class="print-bukti-header"><h2>LAMPIRAN FOTO BUKTI</h2></header>
-    <div class="print-bukti-single-grid ${gridClass}">${figures}</div>`;
-}
-
 function pengajuanPrintBuktiHtml(urls) {
   if (!urls?.length) return '';
   return `
-  <section class="print-page print-page-bukti print-page-break" id="printBuktiPage" data-bukti-loading="1">
-    <p class="print-rab-loading">${icon('pending', 18)} Memuat foto bukti...</p>
-  </section>`;
+  <div id="printBuktiPages" class="print-bukti-pages" data-bukti-loading="1">
+    <section class="print-page print-page-bukti">
+      <p class="print-rab-loading">${icon('pending', 18)} Memuat foto bukti...</p>
+    </section>
+  </div>`;
+}
+
+function buildBuktiPrintPageHtml(item, pageNum, total) {
+  const header =
+    pageNum === 1
+      ? `<header class="print-bukti-header"><h2>LAMPIRAN FOTO BUKTI</h2><p>Foto ${pageNum} dari ${total}</p></header>`
+      : `<header class="print-bukti-header print-bukti-header--sub"><p>LAMPIRAN FOTO BUKTI — Foto ${pageNum} dari ${total}</p></header>`;
+  return `
+    <section class="print-page print-page-bukti print-bukti-page" data-print-section="LAMPIRAN FOTO BUKTI">
+      ${header}
+      <div class="print-bukti-photo-body">
+        <figure class="print-bukti-figure print-bukti-figure-full">
+          <img src="${item.src}" alt="Foto Bukti ${item.index + 1}" class="print-bukti-img print-bukti-img-full" />
+        </figure>
+      </div>
+    </section>`;
 }
 
 async function renderBuktiPrintPreview(urls) {
-  const page = document.getElementById('printBuktiPage');
-  if (!page) return;
+  const container = document.getElementById('printBuktiPages');
+  if (!container) return { pages: 0 };
 
   if (!urls?.length) {
-    page.innerHTML = '<p class="print-empty">Tidak ada foto bukti pendukung.</p>';
-    delete page.dataset.buktiLoading;
-    return;
+    delete container.dataset.buktiLoading;
+    return { pages: 0 };
   }
 
   try {
     const items = await Promise.all(urls.map((src, index) => loadBuktiImageMeta(src, index)));
-    page.innerHTML = buildBuktiSinglePageHtml(items);
-    delete page.dataset.buktiLoading;
+    const parts = [];
+    for (let i = 0; i < items.length; i++) {
+      parts.push(buildBuktiPrintPageHtml(items[i], i + 1, items.length));
+    }
+    container.innerHTML = parts.join('');
+    delete container.dataset.buktiLoading;
+    return { pages: items.length };
   } catch (e) {
     console.warn('Bukti print preview:', e);
-    page.innerHTML = '<p class="print-empty">Gagal memuat foto bukti.</p>';
-    delete page.dataset.buktiLoading;
+    container.innerHTML = `<section class="print-page print-page-bukti" data-print-section="LAMPIRAN FOTO BUKTI"><p class="print-empty">Gagal memuat foto bukti.</p></section>`;
+    delete container.dataset.buktiLoading;
+    return { pages: 1 };
   }
 }
 
 function pengajuanPrintSuratHtml(p) {
   const loading = p?.suratFileUrl
     ? `<section class="print-page print-pdf-loading"><p class="print-rab-loading">${icon('pending', 18)} Memuat surat pengajuan...</p></section>`
-    : `<section class="print-page print-pdf-empty print-page-break"><header class="print-pdf-page-header"><h2>LAMPIRAN SURAT PENGAJUAN</h2></header><p class="print-empty">Tidak ada file surat pengajuan terlampir.</p></section>`;
+    : `<section class="print-page print-pdf-empty" data-print-section="LAMPIRAN SURAT PENGAJUAN"><header class="print-pdf-page-header"><h2>LAMPIRAN SURAT PENGAJUAN</h2></header><p class="print-empty">Tidak ada file surat pengajuan terlampir.</p></section>`;
   return `<div id="printSuratPages" class="print-pdf-pages"${p?.suratFileUrl ? ' data-pdf-loading="1"' : ''}>${loading}</div>`;
 }
 
@@ -396,19 +397,28 @@ async function pdfPageToImageDataUrl(pdf, pageNum, targetWidth = 760) {
   return canvas.toDataURL('image/jpeg', 0.92);
 }
 
-function buildPdfPageSectionHtml({ sectionTitle, fileName, pageNum, total, dataUrl, imgAlt, isLast }) {
-  const breakClass = isLast ? '' : ' print-page-break';
+function buildPdfPageSectionHtml({ sectionTitle, fileName, pageNum, total, dataUrl, imgAlt }) {
   const header =
     pageNum === 1
       ? `<header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2><p>${escapeHtml(fileName || '')} — Halaman ${pageNum} dari ${total}</p></header>`
       : `<header class="print-pdf-page-header print-pdf-page-header--sub"><p>${escapeHtml(sectionTitle)} — Halaman ${pageNum} dari ${total}</p></header>`;
   return `
-    <section class="print-page print-pdf-page${breakClass}">
+    <section class="print-page print-pdf-page" data-print-section="${escapeHtml(sectionTitle)}">
       ${header}
       <div class="print-pdf-page-body">
         <img src="${dataUrl}" alt="${escapeHtml(imgAlt)} halaman ${pageNum}" class="print-pdf-img" />
       </div>
     </section>`;
+}
+
+/** Terapkan page-break setelah setiap lembar kecuali lembar terakhir dokumen */
+function finalizePrintPageBreaks(root) {
+  if (!root) return 0;
+  const pages = [...root.querySelectorAll('.print-page')];
+  pages.forEach((page, index) => {
+    page.classList.toggle('print-page-break', index < pages.length - 1);
+  });
+  return pages.length;
 }
 
 async function renderPdfAllPages(containerId, { url, fileName, fileType, sectionTitle, imgAlt }) {
@@ -419,14 +429,14 @@ async function renderPdfAllPages(containerId, { url, fileName, fileType, section
   container.dataset.pdfLoading = '1';
 
   if (!url) {
-    container.innerHTML = `<section class="print-page print-pdf-empty print-page-break"><header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2></header><p class="print-empty">Tidak ada file terlampir.</p></section>`;
+    container.innerHTML = `<section class="print-page print-pdf-empty" data-print-section="${escapeHtml(sectionTitle)}"><header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2></header><p class="print-empty">Tidak ada file terlampir.</p></section>`;
     delete container.dataset.pdfLoading;
     return { pages: 1 };
   }
 
   if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) || url.startsWith('data:image/')) {
     container.innerHTML = `
-      <section class="print-page print-pdf-page print-page-break">
+      <section class="print-page print-pdf-page" data-print-section="${escapeHtml(sectionTitle)}">
         <header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2><p>${escapeHtml(fileName || '')}</p></header>
         <div class="print-pdf-page-body"><img src="${url}" alt="${escapeHtml(imgAlt)}" class="print-pdf-img" /></div>
       </section>`;
@@ -449,22 +459,24 @@ async function renderPdfAllPages(containerId, { url, fileName, fileType, section
             total,
             dataUrl,
             imgAlt,
-            isLast: pageNum === total,
           })
         );
+        if (total > 10 && pageNum % 10 === 0) {
+          await new Promise((r) => setTimeout(r, 0));
+        }
       }
       container.innerHTML = parts.join('');
       delete container.dataset.pdfLoading;
       return { pages: total };
     } catch (e) {
       console.warn('renderPdfAllPages:', e);
-      container.innerHTML = `<section class="print-page print-pdf-empty print-page-break">${docPrintFallbackHtml(fileName, 'pdf')}</section>`;
+      container.innerHTML = `<section class="print-page print-pdf-empty" data-print-section="${escapeHtml(sectionTitle)}">${docPrintFallbackHtml(fileName, 'pdf')}</section>`;
       delete container.dataset.pdfLoading;
       return { pages: 1 };
     }
   }
 
-  container.innerHTML = `<section class="print-page print-pdf-empty print-page-break">${docPrintFallbackHtml(fileName, ext)}</section>`;
+  container.innerHTML = `<section class="print-page print-pdf-empty" data-print-section="${escapeHtml(sectionTitle)}">${docPrintFallbackHtml(fileName, ext)}</section>`;
   delete container.dataset.pdfLoading;
   return { pages: 1 };
 }
@@ -492,16 +504,16 @@ async function renderRabPrintPreview(p) {
 
 async function handlePengajuanPrint(p) {
   showToast('Menyiapkan dokumen cetak...', 'info');
-  const [suratResult, , rabResult] = await Promise.all([
-    renderSuratPrintPreview(p),
-    renderBuktiPrintPreview(p?.bukti),
-    renderRabPrintPreview(p),
-  ]);
-  const totalPages = 1 + (suratResult?.pages || 0) + (p?.bukti?.length ? 1 : 0) + (rabResult?.pages || 0);
+  // Urutan tetap: 1) Informasi → 2) Surat → 3) Bukti → 4+) RAB (semua halaman)
+  const suratResult = await renderSuratPrintPreview(p);
+  const buktiResult = await renderBuktiPrintPreview(p?.bukti);
+  const rabResult = await renderRabPrintPreview(p);
+
+  const printDoc = document.querySelector('.pengajuan-print-doc');
+  const totalPages = printDoc ? finalizePrintPageBreaks(printDoc) : 0;
   showToast(`Dokumen siap dicetak (${totalPages} halaman)`, 'info');
   await new Promise((r) => setTimeout(r, 300));
 
-  const printDoc = document.querySelector('.pengajuan-print-doc');
   if (!printDoc) {
     window.print();
     return;
@@ -529,14 +541,27 @@ async function handlePengajuanPrint(p) {
   <style>
     body { margin: 0; padding: 0; background: #fff; }
     .print-only { position: static !important; left: auto !important; display: block !important; width: 100% !important; visibility: visible !important; }
+    .pengajuan-print-doc { font-family: 'Times New Roman', Times, serif; color: #000; }
     .print-page { box-sizing: border-box; padding: 12mm 14mm; width: 210mm; margin: 0 auto; background: #fff; }
     .print-page-break { page-break-after: always; break-after: page; }
-    .print-pdf-img { width: 100%; max-width: 182mm; height: auto; object-fit: contain; display: block; margin: 0 auto; }
+    .print-pdf-pages, .print-bukti-pages { display: block; width: 100%; }
+    .print-pdf-page-header { text-align: center; margin-bottom: 5mm; border-bottom: 1px solid #000; padding-bottom: 3mm; }
+    .print-pdf-page-header h2 { margin: 0 0 4px; font-size: 12pt; font-weight: 700; text-transform: uppercase; }
+    .print-pdf-page-header p { margin: 0; font-size: 9pt; }
+    .print-pdf-img { width: 100%; max-width: 182mm; height: auto; max-height: none; object-fit: contain; display: block; margin: 0 auto; }
     .print-pdf-page-body { display: flex; justify-content: center; align-items: flex-start; }
+    .print-bukti-header { text-align: center; margin: 0 0 6mm; border-bottom: 1px solid #000; padding-bottom: 3mm; }
+    .print-bukti-header h2 { margin: 0 0 4px; font-size: 12pt; font-weight: 700; text-transform: uppercase; }
+    .print-bukti-header p { margin: 0; font-size: 9pt; }
+    .print-bukti-header--sub { margin-bottom: 4mm; }
+    .print-bukti-photo-body { display: flex; justify-content: center; align-items: flex-start; min-height: 0; }
+    .print-bukti-figure-full { margin: 0; width: 100%; max-width: 182mm; display: flex; align-items: center; justify-content: center; border: 1px solid #d4d4d4; padding: 3mm; background: #f5f5f5; }
+    .print-bukti-img-full { width: 100%; height: auto; max-height: none; object-fit: contain; display: block; }
     @media print {
       @page { size: A4 portrait; margin: 0; }
       .print-page-break { page-break-after: always !important; break-after: page !important; }
-      .print-pdf-page { page-break-inside: avoid !important; break-inside: avoid !important; }
+      .print-page { page-break-inside: avoid !important; break-inside: avoid !important; }
+      .print-pdf-img { max-height: none !important; }
     }
   </style>
 </head>

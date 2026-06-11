@@ -974,18 +974,61 @@ a:hover { color: var(--primary); }
   align-items: flex-start;
 }
 
+.print-pdf-pages,
+.print-bukti-pages {
+  display: block;
+  width: 100%;
+}
+
 .print-pdf-img {
   display: block;
   width: 100%;
   max-width: 182mm;
   height: auto;
+  max-height: none;
   object-fit: contain;
   margin: 0 auto;
 }
 
-.print-page-bukti {
+.print-page-bukti,
+.print-bukti-page {
   page-break-inside: avoid;
   break-inside: avoid;
+}
+
+.print-bukti-header p {
+  margin: 0;
+  font-size: 9pt;
+}
+
+.print-bukti-header--sub {
+  margin-bottom: 4mm;
+}
+
+.print-bukti-photo-body {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.print-bukti-figure-full {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 182mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d4d4d4;
+  padding: 3mm;
+  background: #f5f5f5;
+}
+
+.print-bukti-img-full {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+  display: block;
 }
 
 .print-bukti-single-grid {
@@ -1189,14 +1232,12 @@ a:hover { color: var(--primary); }
     break-after: page !important;
   }
 
-  .print-page {
+  .print-page,
+  .print-pdf-page {
     min-height: auto;
     padding: 12mm 14mm !important;
     width: 210mm !important;
     box-sizing: border-box !important;
-  }
-
-  .print-pdf-page {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
@@ -1205,6 +1246,7 @@ a:hover { color: var(--primary); }
     width: 100% !important;
     max-width: 182mm !important;
     height: auto !important;
+    max-height: none !important;
     object-fit: contain !important;
   }
 
@@ -1224,9 +1266,14 @@ a:hover { color: var(--primary); }
     print-color-adjust: exact;
   }
 
-  .print-page-bukti {
+  .print-page-bukti,
+  .print-bukti-page {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  .print-bukti-img-full {
+    max-height: none !important;
   }
 
   .print-bukti-grid {
