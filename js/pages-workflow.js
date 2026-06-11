@@ -204,14 +204,14 @@ function pengajuanPrintKopSuratHtml(p, karyawan) {
     ['Tanggal Pengajuan', formatDate(p.tanggal || p.createdAt)],
     ['Status', statusLabelText(p.status)],
     ['Nama File Surat', p.suratFileName || '-'],
-    ['Nama File RAB', p.fileName || '-'],
+    ['File RAB', p.fileName || 'Tidak Dilampirkan'],
   ];
   if (p.pesanAdmin) rows.push(['Catatan Admin', p.pesanAdmin]);
   if (p.tanggalKeputusan) rows.push(['Tanggal Keputusan', formatDateTime(p.tanggalKeputusan)]);
   if (p.keterangan) rows.push(['Keterangan', p.keterangan]);
 
   return `
-  <section class="print-page print-page-kop print-sheet print-sheet-1">
+  <section class="print-page print-page-kop print-page-break">
     <header class="kop-surat">
       <div class="kop-surat-top">
         <div class="kop-logo">
@@ -297,12 +297,10 @@ function buildBuktiSinglePageHtml(items) {
 }
 
 function pengajuanPrintBuktiHtml(urls) {
-  const loading = urls?.length
-    ? `<p class="print-rab-loading">${icon('pending', 18)} Memuat foto bukti...</p>`
-    : '<p class="print-empty">Tidak ada foto bukti pendukung.</p>';
+  if (!urls?.length) return '';
   return `
-  <section class="print-page print-page-bukti print-sheet print-sheet-3" id="printBuktiPage"${urls?.length ? ' data-bukti-loading="1"' : ''}>
-    ${loading}
+  <section class="print-page print-page-bukti print-page-break" id="printBuktiPage" data-bukti-loading="1">
+    <p class="print-rab-loading">${icon('pending', 18)} Memuat foto bukti...</p>
   </section>`;
 }
 
@@ -328,54 +326,17 @@ async function renderBuktiPrintPreview(urls) {
 }
 
 function pengajuanPrintSuratHtml(p) {
-  if (!p?.suratFileUrl) {
-    return `
-    <section class="print-page print-page-surat print-sheet print-sheet-2">
-      <header class="print-page-header print-page-header-compact">
-        <h2>LAMPIRAN SURAT PENGAJUAN</h2>
-      </header>
-      <p class="print-empty">Tidak ada file surat pengajuan terlampir.</p>
-    </section>`;
-  }
-
-  const url = p.suratFileUrl;
-  const ext = (p.suratFileType || getFileExt(p.suratFileName || '') || '').toLowerCase();
-
-  return `
-  <section class="print-page print-page-surat print-sheet print-sheet-2">
-    <header class="print-page-header print-page-header-compact">
-      <h2>LAMPIRAN SURAT PENGAJUAN</h2>
-      <p>${escapeHtml(p.suratFileName || 'Surat Pengajuan')}</p>
-    </header>
-    <div class="print-rab-sheet" id="printSuratContainer" data-doc-url="${escapeHtml(url)}" data-doc-ext="${escapeHtml(ext)}">
-      <p class="print-rab-loading">${icon('pending', 18)} Memuat tampilan surat...</p>
-    </div>
-  </section>`;
+  const loading = p?.suratFileUrl
+    ? `<section class="print-page print-pdf-loading"><p class="print-rab-loading">${icon('pending', 18)} Memuat surat pengajuan...</p></section>`
+    : `<section class="print-page print-pdf-empty print-page-break"><header class="print-pdf-page-header"><h2>LAMPIRAN SURAT PENGAJUAN</h2></header><p class="print-empty">Tidak ada file surat pengajuan terlampir.</p></section>`;
+  return `<div id="printSuratPages" class="print-pdf-pages"${p?.suratFileUrl ? ' data-pdf-loading="1"' : ''}>${loading}</div>`;
 }
 
 function pengajuanPrintRabHtml(p) {
-  if (!p?.fileUrl) {
-    return `
-    <section class="print-page print-page-rab print-sheet print-sheet-4">
-      <header class="print-page-header print-page-header-compact">
-        <h2>LAMPIRAN RENCANA ANGGARAN BIAYA (RAB)</h2>
-      </header>
-      <p class="print-empty">Tidak ada file RAB terlampir.</p>
-    </section>`;
-  }
-
-  const url = p.fileUrl;
-  const ext = (p.fileType || getFileExt(p.fileName || '') || '').toLowerCase();
-
-  return `
-  <section class="print-page print-page-rab print-sheet print-sheet-4">
-    <header class="print-page-header print-page-header-compact">
-      <h2>LAMPIRAN RENCANA ANGGARAN BIAYA (RAB)</h2>
-    </header>
-    <div class="print-rab-sheet" id="printRabContainer" data-doc-url="${escapeHtml(url)}" data-doc-ext="${escapeHtml(ext)}">
-      <p class="print-rab-loading">${icon('pending', 18)} Memuat tampilan RAB...</p>
-    </div>
-  </section>`;
+  if (!p?.fileUrl) return '';
+  return `<div id="printRabPages" class="print-pdf-pages" data-pdf-loading="1">
+    <section class="print-page print-pdf-loading"><p class="print-rab-loading">${icon('pending', 18)} Memuat file RAB...</p></section>
+  </div>`;
 }
 
 let _pdfJsLoading = null;
@@ -397,10 +358,6 @@ function loadPdfJs() {
   return _pdfJsLoading;
 }
 
-function rabPrintFallbackIframe(url) {
-  return `<iframe src="${url}#toolbar=0&navpanes=0&view=FitH" title="Preview RAB" class="print-rab-iframe"></iframe>`;
-}
-
 function docPrintFallbackHtml(fileName, ext) {
   const hint = ['doc', 'docx'].includes(ext)
     ? 'File Word — unduh file asli untuk melihat isi surat pengajuan.'
@@ -413,91 +370,136 @@ function docPrintFallbackHtml(fileName, ext) {
   </div>`;
 }
 
-async function renderFilePrintPreview(containerId, { url, fileName, fileType, imgAlt, imageOnly = false }) {
+async function fetchPdfDocument(url) {
+  const pdfjs = await loadPdfJs();
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.arrayBuffer();
+    return pdfjs.getDocument({ data }).promise;
+  } catch (fetchErr) {
+    console.warn('fetch pdf bytes:', fetchErr);
+    return pdfjs.getDocument({ url, withCredentials: false }).promise;
+  }
+}
+
+async function pdfPageToImageDataUrl(pdf, pageNum, targetWidth = 760) {
+  const page = await pdf.getPage(pageNum);
+  const baseViewport = page.getViewport({ scale: 1 });
+  const scale = targetWidth / baseViewport.width;
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
+function buildPdfPageSectionHtml({ sectionTitle, fileName, pageNum, total, dataUrl, imgAlt, isLast }) {
+  const breakClass = isLast ? '' : ' print-page-break';
+  const header =
+    pageNum === 1
+      ? `<header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2><p>${escapeHtml(fileName || '')} — Halaman ${pageNum} dari ${total}</p></header>`
+      : `<header class="print-pdf-page-header print-pdf-page-header--sub"><p>${escapeHtml(sectionTitle)} — Halaman ${pageNum} dari ${total}</p></header>`;
+  return `
+    <section class="print-page print-pdf-page${breakClass}">
+      ${header}
+      <div class="print-pdf-page-body">
+        <img src="${dataUrl}" alt="${escapeHtml(imgAlt)} halaman ${pageNum}" class="print-pdf-img" />
+      </div>
+    </section>`;
+}
+
+async function renderPdfAllPages(containerId, { url, fileName, fileType, sectionTitle, imgAlt }) {
   const container = document.getElementById(containerId);
-  if (!container || !url) return;
+  if (!container) return { pages: 0 };
 
   const ext = (fileType || getFileExt(fileName || '') || '').toLowerCase();
-  container.dataset.loading = '1';
+  container.dataset.pdfLoading = '1';
+
+  if (!url) {
+    container.innerHTML = `<section class="print-page print-pdf-empty print-page-break"><header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2></header><p class="print-empty">Tidak ada file terlampir.</p></section>`;
+    delete container.dataset.pdfLoading;
+    return { pages: 1 };
+  }
 
   if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) || url.startsWith('data:image/')) {
-    container.innerHTML = `<img src="${url}" alt="${escapeHtml(imgAlt)}" class="print-rab-img" />`;
-    delete container.dataset.loading;
-    return;
+    container.innerHTML = `
+      <section class="print-page print-pdf-page print-page-break">
+        <header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2><p>${escapeHtml(fileName || '')}</p></header>
+        <div class="print-pdf-page-body"><img src="${url}" alt="${escapeHtml(imgAlt)}" class="print-pdf-img" /></div>
+      </section>`;
+    delete container.dataset.pdfLoading;
+    return { pages: 1 };
   }
 
   if (ext === 'pdf' || /\.pdf(\?|$)/i.test(url)) {
     try {
-      const pdfjs = await loadPdfJs();
-      let pdf;
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.arrayBuffer();
-        pdf = await pdfjs.getDocument({ data }).promise;
-      } catch (fetchErr) {
-        console.warn('fetch pdf bytes:', fetchErr);
-        pdf = await pdfjs.getDocument({ url, withCredentials: false }).promise;
+      const pdf = await fetchPdfDocument(url);
+      const total = pdf.numPages;
+      const parts = [];
+      for (let pageNum = 1; pageNum <= total; pageNum++) {
+        const dataUrl = await pdfPageToImageDataUrl(pdf, pageNum);
+        parts.push(
+          buildPdfPageSectionHtml({
+            sectionTitle,
+            fileName,
+            pageNum,
+            total,
+            dataUrl,
+            imgAlt,
+            isLast: pageNum === total,
+          })
+        );
       }
-      const page = await pdf.getPage(1);
-      const baseViewport = page.getViewport({ scale: 1 });
-      const targetWidth = 760;
-      const scale = targetWidth / baseViewport.width;
-      const viewport = page.getViewport({ scale });
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      const img = document.createElement('img');
-      img.src = canvas.toDataURL('image/jpeg', 0.94);
-      img.className = 'print-rab-img';
-      img.alt = imgAlt;
-      container.innerHTML = '';
-      container.appendChild(img);
-      delete container.dataset.loading;
-      return;
+      container.innerHTML = parts.join('');
+      delete container.dataset.pdfLoading;
+      return { pages: total };
     } catch (e) {
-      console.warn('renderFilePrintPreview pdf:', e);
-      container.innerHTML = imageOnly
-        ? docPrintFallbackHtml(fileName, 'pdf')
-        : rabPrintFallbackIframe(url);
-      delete container.dataset.loading;
-      return;
+      console.warn('renderPdfAllPages:', e);
+      container.innerHTML = `<section class="print-page print-pdf-empty print-page-break">${docPrintFallbackHtml(fileName, 'pdf')}</section>`;
+      delete container.dataset.pdfLoading;
+      return { pages: 1 };
     }
   }
 
-  container.innerHTML = docPrintFallbackHtml(fileName, ext);
-  delete container.dataset.loading;
+  container.innerHTML = `<section class="print-page print-pdf-empty print-page-break">${docPrintFallbackHtml(fileName, ext)}</section>`;
+  delete container.dataset.pdfLoading;
+  return { pages: 1 };
 }
 
 async function renderSuratPrintPreview(p) {
-  return renderFilePrintPreview('printSuratContainer', {
+  return renderPdfAllPages('printSuratPages', {
     url: p?.suratFileUrl,
     fileName: p?.suratFileName,
     fileType: p?.suratFileType,
+    sectionTitle: 'LAMPIRAN SURAT PENGAJUAN',
     imgAlt: 'Surat Pengajuan',
   });
 }
 
 async function renderRabPrintPreview(p) {
-  return renderFilePrintPreview('printRabContainer', {
+  if (!p?.fileUrl) return { pages: 0 };
+  return renderPdfAllPages('printRabPages', {
     url: p?.fileUrl,
     fileName: p?.fileName,
     fileType: p?.fileType,
-    imgAlt: 'Rencana Anggaran Biaya (RAB)',
-    imageOnly: true,
+    sectionTitle: 'LAMPIRAN RENCANA ANGGARAN BIAYA (RAB)',
+    imgAlt: 'RAB',
   });
 }
 
 async function handlePengajuanPrint(p) {
-  showToast('Menyiapkan dokumen cetak (4 halaman)...', 'info');
-  await Promise.all([
+  showToast('Menyiapkan dokumen cetak...', 'info');
+  const [suratResult, , rabResult] = await Promise.all([
     renderSuratPrintPreview(p),
     renderBuktiPrintPreview(p?.bukti),
     renderRabPrintPreview(p),
   ]);
-  await new Promise((r) => setTimeout(r, 500));
+  const totalPages = 1 + (suratResult?.pages || 0) + (p?.bukti?.length ? 1 : 0) + (rabResult?.pages || 0);
+  showToast(`Dokumen siap dicetak (${totalPages} halaman)`, 'info');
+  await new Promise((r) => setTimeout(r, 300));
 
   const printDoc = document.querySelector('.pengajuan-print-doc');
   if (!printDoc) {
@@ -527,18 +529,15 @@ async function handlePengajuanPrint(p) {
   <style>
     body { margin: 0; padding: 0; background: #fff; }
     .print-only { position: static !important; left: auto !important; display: block !important; width: 100% !important; visibility: visible !important; }
-    .pengajuan-print-doc .print-sheet {
-      page-break-after: always;
-      break-after: page;
-      width: 210mm;
-      min-height: 297mm;
-      height: 297mm;
-      max-height: 297mm;
-      overflow: hidden;
-      box-sizing: border-box;
+    .print-page { box-sizing: border-box; padding: 12mm 14mm; width: 210mm; margin: 0 auto; background: #fff; }
+    .print-page-break { page-break-after: always; break-after: page; }
+    .print-pdf-img { width: 100%; max-width: 182mm; height: auto; object-fit: contain; display: block; margin: 0 auto; }
+    .print-pdf-page-body { display: flex; justify-content: center; align-items: flex-start; }
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      .print-page-break { page-break-after: always !important; break-after: page !important; }
+      .print-pdf-page { page-break-inside: avoid !important; break-inside: avoid !important; }
     }
-    .pengajuan-print-doc .print-sheet-4 { page-break-after: auto; break-after: auto; }
-    .print-rab-img { max-height: 248mm !important; width: 100% !important; object-fit: contain !important; }
   </style>
 </head>
 <body>${printDoc.outerHTML}</body>
@@ -593,7 +592,7 @@ function detailInfoGridHtml(p, karyawan) {
     { label: 'Tanggal Pengajuan', value: formatDate(p.tanggal || p.createdAt) },
     { label: 'Status', html: badgeStatus(p.status) },
     { label: 'Nama File Surat', value: p.suratFileName || '-' },
-    { label: 'Nama File RAB', value: p.fileName || '-' },
+    { label: 'File RAB', value: p.fileName || 'Tidak Dilampirkan' },
   ];
   if (p.pesanAdmin) items.push({ label: 'Catatan Admin', value: p.pesanAdmin, wide: true });
   if (p.tanggalKeputusan) items.push({ label: 'Tanggal Keputusan', value: formatDateTime(p.tanggalKeputusan) });
@@ -655,7 +654,7 @@ function rabFilePreviewHtml(p) {
     fileName: p?.fileName || 'File RAB',
     fileType: p?.fileType,
     fileSize: p?.fileSize,
-    emptyLabel: 'Tidak ada file RAB',
+    emptyLabel: 'Tidak Dilampirkan',
     downloadId: 'btnDlPengajuan',
   });
 }
@@ -790,7 +789,7 @@ function pageUserPengajuan(user, editId) {
   const content = `
     ${card(
       title,
-      'Unduh template di menu Template RAB → isi file → unggah di sini (PDF, XLS, XLSX, maks ' + APP_LIMITS.MAX_FILE_MB + ' MB)',
+      'Unggah surat pengajuan (wajib). File RAB opsional — lampirkan jika sudah tersedia (PDF, XLS, XLSX, maks ' + APP_LIMITS.MAX_FILE_MB + ' MB)',
       `
       <div class="alert alert-info" style="display:flex;margin-bottom:16px">
         ${icon('info', 18)}
@@ -846,8 +845,9 @@ function pageUserPengajuan(user, editId) {
           ${editing?.suratFileName ? `<p class="form-hint">File surat saat ini: ${escapeHtml(editing.suratFileName)} (${formatFileSize(editing.suratFileSize)})</p>` : ''}
         </div>
         <div class="form-group">
-          <label>${icon('upload', 14)} Upload File RAB * (${APP_LIMITS.ALLOWED_PENGAJUAN_EXT.join(', ')})</label>
-          <input type="file" id="rabFile" class="input" accept=".pdf,.xls,.xlsx" ${isRevisi ? '' : 'required'} />
+          <label>${icon('upload', 14)} Upload File RAB (Opsional) (${APP_LIMITS.ALLOWED_PENGAJUAN_EXT.join(', ')})</label>
+          <p class="form-hint">Lampirkan file RAB jika sudah tersedia. Pengajuan tetap dapat dikirim tanpa file RAB.</p>
+          <input type="file" id="rabFile" class="input" accept=".pdf,.xls,.xlsx" />
           ${editing?.fileName ? `<p class="form-hint">File saat ini: ${escapeHtml(editing.fileName)} (${formatFileSize(editing.fileSize)})</p>` : ''}
         </div>
         <div class="submit-actions">
@@ -944,17 +944,6 @@ function bindUserPengajuan(user, editId) {
       err.style.display = 'flex';
       return;
     }
-    if (!editing && !file) {
-      err.textContent = 'Pilih file RAB';
-      err.style.display = 'flex';
-      return;
-    }
-    if (editing?.status === 'revisi' && !file) {
-      err.textContent = 'Unggah file RAB yang sudah diperbaiki';
-      err.style.display = 'flex';
-      return;
-    }
-
     if (!editing) {
       const kode = normalizeKode(document.getElementById('kode')?.value);
       if (!kode) {
@@ -1000,10 +989,8 @@ function bindUserPengajuan(user, editId) {
         );
         showToast('Pengajuan revisi dikirim ulang');
       } else {
-        const [uploadedRab, uploadedSurat] = await Promise.all([
-          apiUploadPengajuanFile(user.id, file),
-          apiUploadPengajuanSuratFile(user.id, suratFile),
-        ]);
+        const uploadedSurat = await apiUploadPengajuanSuratFile(user.id, suratFile);
+        const uploadedRab = file ? await apiUploadPengajuanFile(user.id, file) : null;
         await apiCreatePengajuan(
           {
             userId: user.id,
@@ -1013,11 +1000,11 @@ function bindUserPengajuan(user, editId) {
             divisi: document.getElementById('divisi').value.trim(),
             tanggal: document.getElementById('tanggal').value,
             buktiUrls,
-            fileName: uploadedRab.name,
-            fileUrl: uploadedRab.url,
-            storagePath: uploadedRab.path,
-            fileType: uploadedRab.ext,
-            fileSize: uploadedRab.size,
+            fileName: uploadedRab?.name || null,
+            fileUrl: uploadedRab?.url || null,
+            storagePath: uploadedRab?.path || null,
+            fileType: uploadedRab?.ext || null,
+            fileSize: uploadedRab?.size || null,
             suratFileName: uploadedSurat.name,
             suratFileUrl: uploadedSurat.url,
             suratStoragePath: uploadedSurat.path,
@@ -1526,12 +1513,8 @@ function pageUserDetail(user, id) {
 function bindPengajuanDetail(id, context, user, scope = 'admin') {
   const p = getPengajuanFromStore(id);
   renderBuktiPrintPreview(p?.bukti).catch((e) => console.warn('Bukti print preview:', e));
-  if (p?.suratFileUrl) {
-    renderSuratPrintPreview(p).catch((e) => console.warn('Surat print preview:', e));
-  }
-  if (p?.fileUrl) {
-    renderRabPrintPreview(p).catch((e) => console.warn('RAB print preview:', e));
-  }
+  renderSuratPrintPreview(p).catch((e) => console.warn('Surat print preview:', e));
+  renderRabPrintPreview(p).catch((e) => console.warn('RAB print preview:', e));
   document.getElementById('btnPrint')?.addEventListener('click', () => {
     handlePengajuanPrint(p);
   });

@@ -643,11 +643,11 @@ async function apiCreatePengajuan(payload, session) {
     divisi: payload.divisi,
     bukti_urls: payload.buktiUrls || [],
     tanggal: payload.tanggal || todayISO(),
-    file_name: payload.fileName,
-    file_url: payload.fileUrl,
-    storage_path: payload.storagePath,
-    file_type: payload.fileType,
-    file_size: payload.fileSize,
+    file_name: payload.fileName || null,
+    file_url: payload.fileUrl || null,
+    storage_path: payload.storagePath || null,
+    file_type: payload.fileType || null,
+    file_size: payload.fileSize ?? null,
     surat_file_name: payload.suratFileName || null,
     surat_file_url: payload.suratFileUrl || null,
     surat_storage_path: payload.suratStoragePath || null,
@@ -664,7 +664,9 @@ async function apiCreatePengajuan(payload, session) {
     throw error;
   }
   await apiLogActivity(session, 'Buat Pengajuan Anggaran', kode, { judul: payload.judul });
-  await apiLogActivity(session, 'Upload File RAB', payload.fileName, { kode });
+  if (payload.fileName) {
+    await apiLogActivity(session, 'Upload File RAB', payload.fileName, { kode });
+  }
   if (payload.suratFileName) {
     await apiLogActivity(session, 'Upload Surat Pengajuan', payload.suratFileName, { kode });
   }

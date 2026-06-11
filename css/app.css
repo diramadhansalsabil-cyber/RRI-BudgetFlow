@@ -745,7 +745,7 @@ a:hover { color: var(--primary); }
   box-shadow: var(--shadow);
 }
 
-/* Cetak detail pengajuan — 4 halaman tetap */
+/* Cetak detail pengajuan — halaman dinamis (detail + surat + bukti + RAB) */
 .print-only {
   position: absolute;
   left: -9999px;
@@ -930,28 +930,62 @@ a:hover { color: var(--primary); }
   font-size: 9pt;
 }
 
-.print-page-bukti,
-.print-page-surat,
-.print-page-rab {
-  page-break-inside: avoid;
-  break-inside: avoid;
-  overflow: hidden;
-}
-
-.pengajuan-print-doc .print-sheet {
+.print-page-break {
   page-break-after: always;
   break-after: page;
-  width: 210mm;
-  min-height: 297mm;
-  height: 297mm;
-  max-height: 297mm;
-  overflow: hidden;
-  box-sizing: border-box;
 }
 
-.pengajuan-print-doc .print-sheet-4 {
-  page-break-after: auto;
-  break-after: auto;
+.print-pdf-pages {
+  width: 100%;
+}
+
+.print-pdf-page {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.print-pdf-page-header {
+  text-align: center;
+  margin-bottom: 5mm;
+  border-bottom: 1px solid #000;
+  padding-bottom: 3mm;
+}
+
+.print-pdf-page-header h2 {
+  margin: 0 0 4px;
+  font-size: 12pt;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.print-pdf-page-header p {
+  margin: 0;
+  font-size: 9pt;
+}
+
+.print-pdf-page-header--sub {
+  margin-bottom: 3mm;
+  padding-bottom: 2mm;
+}
+
+.print-pdf-page-body {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.print-pdf-img {
+  display: block;
+  width: 100%;
+  max-width: 182mm;
+  height: auto;
+  object-fit: contain;
+  margin: 0 auto;
+}
+
+.print-page-bukti {
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
 .print-bukti-single-grid {
@@ -1150,26 +1184,28 @@ a:hover { color: var(--primary); }
     pointer-events: auto !important;
   }
 
-  .pengajuan-print-doc .print-sheet {
+  .print-page-break {
     page-break-after: always !important;
     break-after: page !important;
-    width: 210mm !important;
-    min-height: 297mm !important;
-    height: 297mm !important;
-    max-height: 297mm !important;
-    overflow: hidden !important;
-    padding: 12mm 14mm !important;
-    box-sizing: border-box !important;
-  }
-
-  .pengajuan-print-doc .print-sheet-4 {
-    page-break-after: auto !important;
-    break-after: auto !important;
   }
 
   .print-page {
     min-height: auto;
-    padding: 0;
+    padding: 12mm 14mm !important;
+    width: 210mm !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-pdf-page {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-pdf-img {
+    width: 100% !important;
+    max-width: 182mm !important;
+    height: auto !important;
+    object-fit: contain !important;
   }
 
   .card {
@@ -1188,12 +1224,9 @@ a:hover { color: var(--primary); }
     print-color-adjust: exact;
   }
 
-  .print-page-bukti,
-  .print-page-surat,
-  .print-page-rab {
+  .print-page-bukti {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    overflow: hidden !important;
   }
 
   .print-bukti-grid {
