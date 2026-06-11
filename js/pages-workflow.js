@@ -341,6 +341,39 @@ function pengajuanPrintRabHtml(p) {
 }
 
 let _pdfJsLoading = null;
+let _mammothLoading = null;
+let _sheetJsLoading = null;
+
+function loadScriptOnce(url, globalName) {
+  if (globalName && window[globalName]) return Promise.resolve(window[globalName]);
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = url;
+    script.onload = () => resolve(globalName ? window[globalName] : true);
+    script.onerror = () => reject(new Error(`Gagal memuat ${globalName || url}`));
+    document.head.appendChild(script);
+  });
+}
+
+function loadMammoth() {
+  if (window.mammoth) return Promise.resolve(window.mammoth);
+  if (_mammothLoading) return _mammothLoading;
+  _mammothLoading = loadScriptOnce(
+    'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
+    'mammoth'
+  );
+  return _mammothLoading;
+}
+
+function loadSheetJs() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (_sheetJsLoading) return _sheetJsLoading;
+  _sheetJsLoading = loadScriptOnce(
+    'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+    'XLSX'
+  );
+  return _sheetJsLoading;
+}
 
 function loadPdfJs() {
   if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
@@ -360,23 +393,30 @@ function loadPdfJs() {
 }
 
 function docPrintFallbackHtml(fileName, ext) {
-  const hint = ['doc', 'docx'].includes(ext)
-    ? 'File Word — unduh file asli untuk melihat isi surat pengajuan.'
-    : ext === 'xls' || ext === 'xlsx'
-      ? 'File Excel — unduh file asli untuk melihat isi dokumen.'
-      : 'Format tidak dapat dipratinjau — unduh file asli.';
+  const hint =
+    ext === 'doc'
+      ? 'Format Word lama (.doc) — simpan sebagai .docx atau unduh file asli.'
+      : ['docx'].includes(ext)
+        ? 'Gagal memuat isi Word — unduh file asli untuk melihat dokumen.'
+        : ext === 'xls' || ext === 'xlsx'
+          ? 'Gagal memuat isi Excel — unduh file asli untuk melihat dokumen.'
+          : 'Format tidak dapat dipratinjau — unduh file asli.';
   return `<div class="print-rab-fallback">
     <p><strong>${escapeHtml(fileName || 'Dokumen')}</strong></p>
     <p>${hint}</p>
   </div>`;
 }
 
+async function fetchFileArrayBuffer(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.arrayBuffer();
+}
+
 async function fetchPdfDocument(url) {
   const pdfjs = await loadPdfJs();
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.arrayBuffer();
+    const data = await fetchFileArrayBuffer(url);
     return pdfjs.getDocument({ data }).promise;
   } catch (fetchErr) {
     console.warn('fetch pdf bytes:', fetchErr);
@@ -456,6 +496,18 @@ function getPengajuanPrintCss() {
     .print-bukti-figure-full { margin: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd; padding: 2mm; background: #fafafa; }
     .print-rab-loading, .print-empty, .print-rab-fallback { font-size: 10pt; color: #666; text-align: center; margin: auto; }
     .print-empty, .print-rab-fallback { border: 1px dashed #999; padding: 10mm; }
+    .print-page-office {
+      height: auto !important; min-height: 0 !important; max-height: none !important;
+      overflow: visible !important; page-break-inside: auto !important; break-inside: auto !important;
+    }
+    .print-office-body {
+      flex: 1; min-height: 0; font-size: 9pt; line-height: 1.4; color: #000; overflow: visible;
+    }
+    .print-office-body p { margin: 0 0 3mm; }
+    .print-office-body table { border-collapse: collapse; width: 100%; font-size: 7.5pt; margin: 0 0 3mm; }
+    .print-office-body td, .print-office-body th { border: 1px solid #333; padding: 2px 4px; vertical-align: top; word-break: break-word; }
+    .print-office-body img { max-width: 100%; height: auto; }
+    .print-xlsx-sheet-title { font-size: 9pt; font-weight: 700; margin: 0 0 2mm; }
     @media print {
       @page { size: A4 portrait; margin: 0; }
       html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
@@ -466,9 +518,26 @@ function getPengajuanPrintCss() {
       }
       .print-page-break { break-after: page !important; page-break-after: always !important; }
       .print-pdf-img, .print-bukti-img-full { max-width: 100% !important; max-height: 100% !important; }
+      .print-page-office {
+        height: auto !important; min-height: 0 !important; max-height: none !important;
+        overflow: visible !important; page-break-inside: auto !important; break-inside: auto !important;
+      }
       .kop-logo-img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   `;
+}
+
+function buildOfficeHtmlPageSection({ sectionTitle, fileName, pageNum, total, bodyHtml, sheetName }) {
+  const header =
+    pageNum === 1
+      ? `<header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2><p>${escapeHtml(fileName || '')}${total > 1 ? ` — Halaman ${pageNum} dari ${total}` : ''}</p></header>`
+      : `<header class="print-pdf-page-header print-pdf-page-header--sub"><p>${escapeHtml(sectionTitle)}${sheetName ? ` · ${escapeHtml(sheetName)}` : ''} — Halaman ${pageNum} dari ${total}</p></header>`;
+  const sheetLabel = sheetName ? `<p class="print-xlsx-sheet-title">Sheet: ${escapeHtml(sheetName)}</p>` : '';
+  return `
+    <section class="print-page print-page-office print-office-page" data-print-section="${escapeHtml(sectionTitle)}">
+      ${header}
+      <div class="print-office-body">${sheetLabel}${bodyHtml}</div>
+    </section>`;
 }
 
 function buildPdfPageSectionHtml({ sectionTitle, fileName, pageNum, total, dataUrl, imgAlt }) {
@@ -493,6 +562,112 @@ function finalizePrintPageBreaks(root) {
     page.classList.toggle('print-page-break', index < pages.length - 1);
   });
   return pages.length;
+}
+
+const PRINT_XLSX_ROWS_PER_PAGE = 28;
+
+function chunkSheetRows(rows, rowsPerPage = PRINT_XLSX_ROWS_PER_PAGE) {
+  if (!rows?.length) return [[]];
+  const chunks = [];
+  for (let i = 0; i < rows.length; i += rowsPerPage) {
+    chunks.push(rows.slice(i, i + rowsPerPage));
+  }
+  return chunks;
+}
+
+function rowsToTableHtml(rows) {
+  if (!rows.length) return '<p class="print-empty">Sheet kosong</p>';
+  const body = rows
+    .map(
+      (row) =>
+        `<tr>${(Array.isArray(row) ? row : [row])
+          .map((cell) => `<td>${escapeHtml(String(cell ?? ''))}</td>`)
+          .join('')}</tr>`
+    )
+    .join('');
+  return `<table class="print-xlsx-table"><tbody>${body}</tbody></table>`;
+}
+
+async function renderDocxPrintPages(container, arrayBuffer, { fileName, sectionTitle }) {
+  const mammoth = await loadMammoth();
+  const result = await mammoth.convertToHtml(
+    { arrayBuffer },
+    {
+      convertImage: mammoth.images.imgElement((image) =>
+        image.read('base64').then((imageBuffer) => ({
+          src: `data:${image.contentType};base64,${imageBuffer}`,
+        }))
+      ),
+    }
+  );
+  const html = result.value || '<p class="print-empty">Dokumen Word kosong</p>';
+  container.innerHTML = buildOfficeHtmlPageSection({
+    sectionTitle,
+    fileName,
+    pageNum: 1,
+    total: 1,
+    bodyHtml: html,
+  });
+  return { pages: 1 };
+}
+
+async function renderXlsxPrintPages(container, arrayBuffer, { fileName, sectionTitle }) {
+  const XLSX = await loadSheetJs();
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  const parts = [];
+  let pageNum = 0;
+  let totalPages = 0;
+  const sheetChunks = wb.SheetNames.map((sheetName) => {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+    return { sheetName, chunks: chunkSheetRows(rows) };
+  });
+  totalPages = sheetChunks.reduce((sum, s) => sum + s.chunks.length, 0) || 1;
+
+  sheetChunks.forEach(({ sheetName, chunks }) => {
+    chunks.forEach((chunk, chunkIndex) => {
+      pageNum += 1;
+      parts.push(
+        buildOfficeHtmlPageSection({
+          sectionTitle,
+          fileName,
+          pageNum,
+          total: totalPages,
+          bodyHtml: rowsToTableHtml(chunk),
+          sheetName:
+            wb.SheetNames.length > 1 || chunks.length > 1
+              ? `${sheetName}${chunks.length > 1 ? ` (${chunkIndex + 1}/${chunks.length})` : ''}`
+              : null,
+        })
+      );
+    });
+  });
+
+  if (!parts.length) {
+    parts.push(
+      buildOfficeHtmlPageSection({
+        sectionTitle,
+        fileName,
+        pageNum: 1,
+        total: 1,
+        bodyHtml: '<p class="print-empty">File Excel kosong</p>',
+      })
+    );
+  }
+
+  container.innerHTML = parts.join('');
+  return { pages: parts.length };
+}
+
+async function renderOfficePrintPages(container, { url, fileName, ext, sectionTitle }) {
+  const data = await fetchFileArrayBuffer(url);
+  if (ext === 'docx') {
+    return renderDocxPrintPages(container, data, { fileName, sectionTitle });
+  }
+  if (ext === 'xls' || ext === 'xlsx') {
+    return renderXlsxPrintPages(container, data, { fileName, sectionTitle });
+  }
+  throw new Error(`Format .${ext} tidak didukung untuk pratinjau cetak`);
 }
 
 async function renderPdfAllPages(containerId, { url, fileName, fileType, sectionTitle, imgAlt }) {
@@ -545,6 +720,19 @@ async function renderPdfAllPages(containerId, { url, fileName, fileType, section
     } catch (e) {
       console.warn('renderPdfAllPages:', e);
       container.innerHTML = `<section class="print-page print-pdf-empty" data-print-section="${escapeHtml(sectionTitle)}">${docPrintFallbackHtml(fileName, 'pdf')}</section>`;
+      delete container.dataset.pdfLoading;
+      return { pages: 1 };
+    }
+  }
+
+  if (['docx', 'xls', 'xlsx'].includes(ext)) {
+    try {
+      const result = await renderOfficePrintPages(container, { url, fileName, ext, sectionTitle });
+      delete container.dataset.pdfLoading;
+      return result;
+    } catch (e) {
+      console.warn('renderOfficePrintPages:', e);
+      container.innerHTML = `<section class="print-page print-pdf-empty" data-print-section="${escapeHtml(sectionTitle)}">${docPrintFallbackHtml(fileName, ext)}</section>`;
       delete container.dataset.pdfLoading;
       return { pages: 1 };
     }
