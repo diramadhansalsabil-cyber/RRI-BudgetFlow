@@ -864,7 +864,7 @@ function pageUserPengajuan(user, editId) {
   const content = `
     ${card(
       title,
-      'Unggah surat pengajuan (wajib). File RAB opsional — lampirkan jika sudah tersedia (PDF, XLS, XLSX, maks ' + APP_LIMITS.MAX_FILE_MB + ' MB)',
+      'Unggah surat pengajuan (wajib). File RAB opsional — lampirkan jika sudah tersedia (' + APP_LIMITS.ALLOWED_PENGAJUAN_EXT.join(', ') + ', maks ' + APP_LIMITS.MAX_FILE_MB + ' MB)',
       `
       <div class="alert alert-info" style="display:flex;margin-bottom:16px">
         ${icon('info', 18)}
@@ -922,7 +922,7 @@ function pageUserPengajuan(user, editId) {
         <div class="form-group">
           <label>${icon('upload', 14)} Upload File RAB (Opsional) (${APP_LIMITS.ALLOWED_PENGAJUAN_EXT.join(', ')})</label>
           <p class="form-hint">Lampirkan file RAB jika sudah tersedia. Pengajuan tetap dapat dikirim tanpa file RAB.</p>
-          <input type="file" id="rabFile" class="input" accept=".pdf,.xls,.xlsx" />
+          <input type="file" id="rabFile" class="input" accept="${getTemplateKind('rab').accept}" />
           ${editing?.fileName ? `<p class="form-hint">File saat ini: ${escapeHtml(editing.fileName)} (${formatFileSize(editing.fileSize)})</p>` : ''}
         </div>
         <div class="submit-actions">
@@ -1218,7 +1218,7 @@ function pageAdminTemplateFolder(user, folderId, kindKey = 'rab') {
     </div>
     ${card(
       'File Template',
-      `${kind.fileTypes} — maks ${APP_LIMITS.MAX_FILE_MB} MB per file${kind.key === 'surat' ? ' · Mendukung Microsoft Word (.doc, .docx)' : ''}`,
+      `${kind.fileTypes} — maks ${APP_LIMITS.MAX_FILE_MB} MB per file · Mendukung PDF, Excel, dan Word (.doc, .docx)`,
       table(cols, files, 'Belum ada file. Klik Upload File.')
     )}`;
   return renderLayout(user, folder.nama, getNavItems('admin', kind.adminRoute), content);
