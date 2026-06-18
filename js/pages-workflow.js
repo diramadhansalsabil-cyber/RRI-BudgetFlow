@@ -228,6 +228,7 @@ function pengajuanPrintKopSuratHtml(p, karyawan) {
     <div class="print-doc-body">
       <h1 class="print-doc-title">LAPORAN DETAIL PENGAJUAN ANGGARAN</h1>
       <p class="print-doc-subtitle">Nomor: <strong>${escapeHtml(displayPengajuanId(p))}</strong></p>
+      <div class="print-doc-main">
       <table class="print-info-table">
         <thead>
           <tr><th>Keterangan</th><th>Isi</th></tr>
@@ -241,6 +242,7 @@ function pengajuanPrintKopSuratHtml(p, karyawan) {
             .join('')}
         </tbody>
       </table>
+      </div>
       <div class="print-doc-tail">
         <p class="print-doc-footer">Dicetak pada: ${formatPrintDateTime(new Date().toISOString())}</p>
         <div class="print-signatures">
@@ -292,7 +294,7 @@ function buildBuktiPrintPageHtml(item, pageNum, total) {
       ? `<header class="print-bukti-header"><h2>LAMPIRAN FOTO BUKTI</h2><p>Foto ${pageNum} dari ${total}</p></header>`
       : `<header class="print-bukti-header print-bukti-header--sub"><p>LAMPIRAN FOTO BUKTI — Foto ${pageNum} dari ${total}</p></header>`;
   return `
-    <section class="print-page print-page-bukti print-bukti-page" data-print-section="LAMPIRAN FOTO BUKTI">
+    <section class="print-page print-page-bukti print-bukti-page print-page-attach" data-print-section="LAMPIRAN FOTO BUKTI">
       ${header}
       <div class="print-bukti-photo-body">
         <figure class="print-bukti-figure print-bukti-figure-full">
@@ -433,16 +435,10 @@ function mmToPrintPx(mm, dpi = PRINT_RENDER_DPI) {
   return Math.round((mm / 25.4) * dpi);
 }
 
-function getPrintRenderTarget(landscape = false) {
-  if (landscape) {
-    return {
-      maxWidth: mmToPrintPx(281),
-      maxHeight: mmToPrintPx(182),
-    };
-  }
+function getPrintRenderTarget() {
   return {
-    maxWidth: mmToPrintPx(194),
-    maxHeight: mmToPrintPx(265),
+    maxWidth: mmToPrintPx(198),
+    maxHeight: mmToPrintPx(278),
   };
 }
 
@@ -450,8 +446,8 @@ function printPageClassNames(...parts) {
   return parts.filter(Boolean).join(' ').trim();
 }
 
-async function pdfPageToImageDataUrl(pdf, pageNum, { landscape = false } = {}) {
-  const { maxWidth, maxHeight } = getPrintRenderTarget(landscape);
+async function pdfPageToImageDataUrl(pdf, pageNum) {
+  const { maxWidth, maxHeight } = getPrintRenderTarget();
   const page = await pdf.getPage(pageNum);
   const baseViewport = page.getViewport({ scale: 1 });
   const scale = Math.min(maxWidth / baseViewport.width, maxHeight / baseViewport.height);
@@ -478,16 +474,17 @@ function getPengajuanPrintCss() {
       min-height: 297mm;
       max-height: 297mm;
       margin: 0;
-      padding: 8mm 10mm;
+      padding: 6mm 8mm;
       background: #fff;
       overflow: hidden;
       display: flex;
       flex-direction: column;
       position: relative;
     }
+    .print-page-attach { padding: 4mm 6mm; }
     .print-page-break { break-after: page; page-break-after: always; }
-    .print-page-kop { font-family: Arial, Helvetica, sans-serif; }
-    .kop-surat { margin-bottom: 5mm; flex-shrink: 0; }
+    .print-page-kop { font-family: Arial, Helvetica, sans-serif; padding: 6mm 8mm; }
+    .kop-surat { margin-bottom: 3mm; flex-shrink: 0; }
     .kop-surat-top { display: flex; align-items: center; gap: 5mm; margin-bottom: 3mm; }
     .kop-logo { flex: 0 0 40mm; }
     .kop-logo-img { width: 38mm; height: auto; display: block; }
@@ -497,20 +494,23 @@ function getPengajuanPrintCss() {
     .print-doc-body {
       flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%;
     }
-    .print-doc-title { text-align: center; font-size: 13pt; font-weight: 700; margin: 0 0 5mm; text-decoration: underline; text-transform: uppercase; }
-    .print-doc-subtitle { text-align: center; font-size: 11pt; margin: 0 0 6mm; }
+    .print-doc-main { flex: 1 1 auto; min-height: 0; }
+    .print-doc-title { text-align: center; font-size: 13pt; font-weight: 700; margin: 0 0 4mm; text-decoration: underline; text-transform: uppercase; }
+    .print-doc-subtitle { text-align: center; font-size: 11pt; margin: 0 0 5mm; }
     .print-info-table { width: 100%; border-collapse: collapse; font-size: 11pt; table-layout: fixed; }
-    .print-info-table th, .print-info-table td { border: 1px solid #000; padding: 8px 10px; vertical-align: top; word-wrap: break-word; }
+    .print-info-table th, .print-info-table td { border: 1px solid #000; padding: 10px 12px; vertical-align: top; word-wrap: break-word; }
     .print-info-table thead th { font-weight: 700; text-align: center; }
     .print-col-label { width: 35%; font-weight: 600; }
-    .print-doc-tail { margin-top: auto; padding-top: 10mm; }
-    .print-doc-footer { margin: 0 0 8mm; font-size: 10pt; text-align: right; }
-    .print-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8mm; text-align: center; }
+    .print-doc-tail { margin-top: auto; flex-shrink: 0; padding-top: 8mm; }
+    .print-doc-footer { margin: 0 0 6mm; font-size: 10pt; text-align: right; }
+    .print-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; text-align: center; }
     .print-sign-title { margin: 0; font-size: 10pt; font-weight: 600; }
-    .print-sign-line { margin-top: 20mm; border-bottom: 1px dotted #000; }
-    .print-pdf-page-header, .print-bukti-header { flex-shrink: 0; text-align: center; margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 1px solid #000; }
-    .print-pdf-page-header h2, .print-bukti-header h2 { margin: 0 0 2px; font-size: 11pt; font-weight: 700; text-transform: uppercase; }
-    .print-pdf-page-header p, .print-bukti-header p { margin: 0; font-size: 8pt; }
+    .print-sign-line { margin-top: 28mm; border-bottom: 1px dotted #000; }
+    .print-pdf-page-header, .print-bukti-header { flex-shrink: 0; text-align: center; margin: 0 0 2mm; padding-bottom: 1.5mm; border-bottom: 1px solid #000; }
+    .print-page-attach .print-pdf-page-header, .print-page-attach .print-bukti-header { margin: 0 0 1.5mm; padding-bottom: 1mm; }
+    .print-pdf-page-header h2, .print-bukti-header h2 { margin: 0 0 1px; font-size: 10pt; font-weight: 700; text-transform: uppercase; }
+    .print-page-attach .print-pdf-page-header h2, .print-page-attach .print-bukti-header h2 { font-size: 9pt; }
+    .print-pdf-page-header p, .print-bukti-header p { margin: 0; font-size: 7.5pt; }
     .print-pdf-page-header--sub, .print-bukti-header--sub { margin-bottom: 3mm; }
     .print-pdf-page-body, .print-bukti-photo-body {
       flex: 1; min-height: 0; width: 100%; display: flex; align-items: stretch; justify-content: stretch; overflow: hidden;
@@ -538,35 +538,14 @@ function getPengajuanPrintCss() {
     .print-office-body img { max-width: 100%; height: auto; }
     .print-xlsx-sheet-title { font-size: 9pt; font-weight: 700; margin: 0 0 2mm; }
     @page { size: A4 portrait; margin: 0; }
-    @page rab-landscape { size: A4 landscape; margin: 0; }
-    .print-page-rab-landscape {
-      page: rab-landscape;
-      width: 297mm;
-      height: 210mm;
-      min-height: 210mm;
-      max-height: 210mm;
-      padding: 6mm 8mm;
-    }
-    .print-page-rab-landscape .print-pdf-img,
-    .print-page-rab-landscape .print-bukti-img-full {
-      max-width: 100%;
-      max-height: 100%;
-    }
     @media print {
       html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
       .print-page {
         width: 210mm !important; height: 297mm !important; min-height: 297mm !important; max-height: 297mm !important;
-        margin: 0 !important; padding: 8mm 10mm !important; overflow: hidden !important;
+        margin: 0 !important; padding: 6mm 8mm !important; overflow: hidden !important;
         break-inside: avoid !important; page-break-inside: avoid !important;
       }
-      .print-page-rab-landscape {
-        page: rab-landscape !important;
-        width: 297mm !important;
-        height: 210mm !important;
-        min-height: 210mm !important;
-        max-height: 210mm !important;
-        padding: 6mm 8mm !important;
-      }
+      .print-page-attach { padding: 4mm 6mm !important; }
       .print-page-break { break-after: page !important; page-break-after: always !important; }
       .print-pdf-img, .print-bukti-img-full { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; }
       .print-page-office {
@@ -597,7 +576,7 @@ function buildPdfPageSectionHtml({ sectionTitle, fileName, pageNum, total, dataU
       ? `<header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2><p>${escapeHtml(fileName || '')} — Halaman ${pageNum} dari ${total}</p></header>`
       : `<header class="print-pdf-page-header print-pdf-page-header--sub"><p>${escapeHtml(sectionTitle)} — Halaman ${pageNum} dari ${total}</p></header>`;
   return `
-    <section class="${printPageClassNames('print-page', 'print-pdf-page', pageClass)}" data-print-section="${escapeHtml(sectionTitle)}">
+    <section class="${printPageClassNames('print-page', 'print-pdf-page', 'print-page-attach', pageClass)}" data-print-section="${escapeHtml(sectionTitle)}">
       ${header}
       <div class="print-pdf-page-body">
         <img src="${dataUrl}" alt="${escapeHtml(imgAlt)} halaman ${pageNum}" class="print-pdf-img" />
@@ -739,7 +718,7 @@ async function renderPdfAllPages(containerId, { url, fileName, fileType, section
 
   if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) || url.startsWith('data:image/')) {
     container.innerHTML = `
-      <section class="${printPageClassNames('print-page', 'print-pdf-page', pageClass)}" data-print-section="${escapeHtml(sectionTitle)}">
+      <section class="${printPageClassNames('print-page', 'print-pdf-page', 'print-page-attach', pageClass)}" data-print-section="${escapeHtml(sectionTitle)}">
         <header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2><p>${escapeHtml(fileName || '')}</p></header>
         <div class="print-pdf-page-body"><img src="${url}" alt="${escapeHtml(imgAlt)}" class="print-pdf-img" /></div>
       </section>`;
@@ -751,10 +730,9 @@ async function renderPdfAllPages(containerId, { url, fileName, fileType, section
     try {
       const pdf = await fetchPdfDocument(url);
       const total = pdf.numPages;
-      const landscape = pageClass.includes('print-page-rab-landscape');
       const parts = [];
       for (let pageNum = 1; pageNum <= total; pageNum++) {
-        const dataUrl = await pdfPageToImageDataUrl(pdf, pageNum, { landscape });
+        const dataUrl = await pdfPageToImageDataUrl(pdf, pageNum);
         parts.push(
           buildPdfPageSectionHtml({
             sectionTitle,
@@ -817,7 +795,6 @@ async function renderRabPrintPreview(p) {
     fileType: p?.fileType,
     sectionTitle: 'LAMPIRAN RENCANA ANGGARAN BIAYA (RAB)',
     imgAlt: 'RAB',
-    pageClass: 'print-page-rab-landscape',
   });
 }
 
