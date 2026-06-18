@@ -1052,7 +1052,7 @@ function pageUserPengajuan(user, editId) {
   const content = `
     ${card(
       title,
-      'Unggah surat pengajuan (wajib). File RAB opsional — lampirkan jika sudah tersedia (' + APP_LIMITS.ALLOWED_PENGAJUAN_EXT.join(', ') + ', maks ' + APP_LIMITS.MAX_FILE_MB + ' MB)',
+      'Unggah surat pengajuan (wajib). File RAB opsional — lampirkan jika sudah tersedia (PDF, maks ' + APP_LIMITS.MAX_FILE_MB + ' MB)',
       `
       <div class="alert alert-info" style="display:flex;margin-bottom:16px">
         ${icon('info', 18)}
@@ -1071,8 +1071,8 @@ function pageUserPengajuan(user, editId) {
             ${
               isRevisi
                 ? `<input class="input input-readonly" readonly value="${escapeHtml(displayPengajuanId(editing))}" />`
-                : `<input id="kode" class="input" required maxlength="64" placeholder="Contoh: PGJ/2026/001" />
-                   <p class="form-hint">Isi nomor sesuai format bagian Anda. Nomor harus unik.</p>`
+                : `<input id="kode" class="input" required maxlength="64" placeholder="Contoh: 001/Nama Divisi/RRI-KDI/2026" />
+                   <p class="form-hint">Contoh nomor pengajuan: 001/tulis nama divisi/RRI-KDI/2026</p>`
             }
           </div>
           <div class="form-group">
@@ -1102,16 +1102,14 @@ function pageUserPengajuan(user, editId) {
           <div id="buktiPreview" class="bukti-preview-grid"></div>
         </div>
         <div class="form-group">
-          <label>${icon('document', 14)} Upload Surat Pengajuan * (${APP_LIMITS.ALLOWED_SURAT_PENGAJUAN_EXT.join(', ')})</label>
+          <label>${icon('document', 14)} Upload Surat Pengajuan * (PDF)</label>
           <p class="form-hint">Unggah surat pengajuan yang sudah diisi (unduh template di menu Template Surat)</p>
-          <p class="form-hint">Format: PDF, Word (.doc, .docx). Jika hanya PDF yang muncul, pilih <strong>Semua file</strong> / <strong>Browse</strong> di pemilih file.</p>
           <input type="file" id="suratFile" class="input" ${isRevisi ? '' : 'required'} />
           ${editing?.suratFileName ? `<p class="form-hint">File surat saat ini: ${escapeHtml(editing.suratFileName)} (${formatFileSize(editing.suratFileSize)})</p>` : ''}
         </div>
         <div class="form-group">
-          <label>${icon('upload', 14)} Upload File RAB (Opsional) (${APP_LIMITS.ALLOWED_PENGAJUAN_EXT.join(', ')})</label>
+          <label>${icon('upload', 14)} Upload File RAB (Opsional) (PDF)</label>
           <p class="form-hint">Lampirkan file RAB jika sudah tersedia. Pengajuan tetap dapat dikirim tanpa file RAB.</p>
-          <p class="form-hint">Format: PDF, Excel (.xls, .xlsx), Word (.doc, .docx). Jika hanya PDF yang muncul, pilih <strong>Semua file</strong> di pemilih file.</p>
           <input type="file" id="rabFile" class="input" />
           ${editing?.fileName ? `<p class="form-hint">File saat ini: ${escapeHtml(editing.fileName)} (${formatFileSize(editing.fileSize)})</p>` : ''}
         </div>
@@ -1301,7 +1299,7 @@ function bindUserPengajuan(user, editId) {
       await render();
     } catch (ex) {
       handleApiError(ex);
-      err.textContent = ex.message;
+      err.textContent = getApiErrorMessage(ex);
       err.style.display = 'flex';
     } finally {
       btn.disabled = false;

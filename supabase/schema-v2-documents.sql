@@ -111,10 +111,11 @@ drop policy if exists "logs_admin_delete" on public.activity_logs;
 create policy "logs_admin_delete" on public.activity_logs for delete to authenticated
   using (public.is_admin());
 
--- Pengajuan: user boleh update sendiri jika status revisi
+-- Pengajuan: user boleh update sendiri jika status revisi → kirim ulang jadi pending
 drop policy if exists "pengajuan_update" on public.pengajuan;
 create policy "pengajuan_update" on public.pengajuan for update to authenticated
-  using (public.is_admin() or (user_id = auth.uid() and status = 'revisi'));
+  using (public.is_admin() or (user_id = auth.uid() and status = 'revisi'))
+  with check (public.is_admin() or (user_id = auth.uid() and status = 'pending'));
 
 -- Pengajuan: hapus arsip riwayat (disetujui / ditolak)
 drop policy if exists "pengajuan_delete_riwayat" on public.pengajuan;

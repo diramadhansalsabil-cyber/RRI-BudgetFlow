@@ -814,8 +814,15 @@ async function apiClearRiwayatPengajuan(session, items) {
   return { ok: true, count: ids.length };
 }
 
+function getApiErrorMessage(err, fallback) {
+  let msg = err?.message || err?.error_description || fallback || 'Terjadi kesalahan';
+  if (/row-level security/i.test(msg) && /pengajuan/i.test(msg)) {
+    return 'Gagal menyimpan pengajuan: izin database belum benar. Admin perlu menjalankan supabase/fix-pengajuan-revisi-rls.sql di Supabase.';
+  }
+  return msg;
+}
+
 function handleApiError(err, fallback) {
   console.error(err);
-  const msg = err?.message || err?.error_description || fallback || 'Terjadi kesalahan';
-  showToast(msg, 'error');
+  showToast(getApiErrorMessage(err, fallback), 'error');
 }
