@@ -241,19 +241,21 @@ function pengajuanPrintKopSuratHtml(p, karyawan) {
             .join('')}
         </tbody>
       </table>
-      <p class="print-doc-footer">Dicetak pada: ${formatPrintDateTime(new Date().toISOString())}</p>
-      <div class="print-signatures">
-        <div class="print-sign-item">
-          <p class="print-sign-title">Disetujui KPA</p>
-          <div class="print-sign-line"></div>
-        </div>
-        <div class="print-sign-item">
-          <p class="print-sign-title">Diverifikasi KTU</p>
-          <div class="print-sign-line"></div>
-        </div>
-        <div class="print-sign-item">
-          <p class="print-sign-title">Diketahui PPK</p>
-          <div class="print-sign-line"></div>
+      <div class="print-doc-tail">
+        <p class="print-doc-footer">Dicetak pada: ${formatPrintDateTime(new Date().toISOString())}</p>
+        <div class="print-signatures">
+          <div class="print-sign-item">
+            <p class="print-sign-title">Disetujui KPA</p>
+            <div class="print-sign-line"></div>
+          </div>
+          <div class="print-sign-item">
+            <p class="print-sign-title">Diverifikasi KTU</p>
+            <div class="print-sign-line"></div>
+          </div>
+          <div class="print-sign-item">
+            <p class="print-sign-title">Diketahui PPK</p>
+            <div class="print-sign-line"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -434,13 +436,13 @@ function mmToPrintPx(mm, dpi = PRINT_RENDER_DPI) {
 function getPrintRenderTarget(landscape = false) {
   if (landscape) {
     return {
-      maxWidth: mmToPrintPx(277),
-      maxHeight: mmToPrintPx(194),
+      maxWidth: mmToPrintPx(281),
+      maxHeight: mmToPrintPx(182),
     };
   }
   return {
-    maxWidth: mmToPrintPx(186),
-    maxHeight: mmToPrintPx(277),
+    maxWidth: mmToPrintPx(194),
+    maxHeight: mmToPrintPx(265),
   };
 }
 
@@ -476,7 +478,7 @@ function getPengajuanPrintCss() {
       min-height: 297mm;
       max-height: 297mm;
       margin: 0;
-      padding: 10mm 12mm;
+      padding: 8mm 10mm;
       background: #fff;
       overflow: hidden;
       display: flex;
@@ -485,38 +487,42 @@ function getPengajuanPrintCss() {
     }
     .print-page-break { break-after: page; page-break-after: always; }
     .print-page-kop { font-family: Arial, Helvetica, sans-serif; }
-    .kop-surat { margin-bottom: 4mm; flex-shrink: 0; }
+    .kop-surat { margin-bottom: 5mm; flex-shrink: 0; }
     .kop-surat-top { display: flex; align-items: center; gap: 5mm; margin-bottom: 3mm; }
-    .kop-logo { flex: 0 0 38mm; }
-    .kop-logo-img { width: 36mm; height: auto; display: block; }
-    .kop-text { flex: 1; text-align: center; padding-right: 38mm; }
-    .kop-line { margin: 0; font-size: 11pt; font-weight: 700; color: #444; line-height: 1.4; text-transform: uppercase; }
+    .kop-logo { flex: 0 0 40mm; }
+    .kop-logo-img { width: 38mm; height: auto; display: block; }
+    .kop-text { flex: 1; text-align: center; padding-right: 40mm; }
+    .kop-line { margin: 0; font-size: 11pt; font-weight: 700; color: #444; line-height: 1.45; text-transform: uppercase; }
     .kop-line-full { border: none; border-top: 2px solid #000; margin: 0; }
-    .print-doc-body { flex: 1; min-height: 0; overflow: hidden; }
-    .print-doc-title { text-align: center; font-size: 12pt; font-weight: 700; margin: 0 0 4mm; text-decoration: underline; text-transform: uppercase; }
-    .print-doc-subtitle { text-align: center; font-size: 10pt; margin: 0 0 5mm; }
-    .print-info-table { width: 100%; border-collapse: collapse; font-size: 10pt; }
-    .print-info-table th, .print-info-table td { border: 1px solid #000; padding: 6px 8px; vertical-align: top; }
+    .print-doc-body {
+      flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%;
+    }
+    .print-doc-title { text-align: center; font-size: 13pt; font-weight: 700; margin: 0 0 5mm; text-decoration: underline; text-transform: uppercase; }
+    .print-doc-subtitle { text-align: center; font-size: 11pt; margin: 0 0 6mm; }
+    .print-info-table { width: 100%; border-collapse: collapse; font-size: 11pt; table-layout: fixed; }
+    .print-info-table th, .print-info-table td { border: 1px solid #000; padding: 8px 10px; vertical-align: top; word-wrap: break-word; }
     .print-info-table thead th { font-weight: 700; text-align: center; }
-    .print-col-label { width: 38%; font-weight: 600; }
-    .print-doc-footer { margin-top: 5mm; font-size: 9pt; text-align: right; }
-    .print-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; margin-top: 8mm; text-align: center; }
-    .print-sign-title { margin: 0; font-size: 9pt; font-weight: 600; }
-    .print-sign-line { margin-top: 16mm; border-bottom: 1px dotted #000; }
+    .print-col-label { width: 35%; font-weight: 600; }
+    .print-doc-tail { margin-top: auto; padding-top: 10mm; }
+    .print-doc-footer { margin: 0 0 8mm; font-size: 10pt; text-align: right; }
+    .print-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8mm; text-align: center; }
+    .print-sign-title { margin: 0; font-size: 10pt; font-weight: 600; }
+    .print-sign-line { margin-top: 20mm; border-bottom: 1px dotted #000; }
     .print-pdf-page-header, .print-bukti-header { flex-shrink: 0; text-align: center; margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 1px solid #000; }
     .print-pdf-page-header h2, .print-bukti-header h2 { margin: 0 0 2px; font-size: 11pt; font-weight: 700; text-transform: uppercase; }
     .print-pdf-page-header p, .print-bukti-header p { margin: 0; font-size: 8pt; }
     .print-pdf-page-header--sub, .print-bukti-header--sub { margin-bottom: 3mm; }
     .print-pdf-page-body, .print-bukti-photo-body {
-      flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;
+      flex: 1; min-height: 0; width: 100%; display: flex; align-items: stretch; justify-content: stretch; overflow: hidden;
     }
     .print-pdf-img, .print-bukti-img-full {
-      display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; margin: 0 auto;
+      display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%;
+      object-fit: contain; object-position: center; margin: 0;
       image-rendering: auto;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .print-bukti-figure-full { margin: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd; padding: 2mm; background: #fafafa; }
+    .print-bukti-figure-full { margin: 0; width: 100%; height: 100%; display: flex; align-items: stretch; justify-content: stretch; border: none; padding: 0; background: #fff; }
     .print-rab-loading, .print-empty, .print-rab-fallback { font-size: 10pt; color: #666; text-align: center; margin: auto; }
     .print-empty, .print-rab-fallback { border: 1px dashed #999; padding: 10mm; }
     .print-page-office {
@@ -539,7 +545,7 @@ function getPengajuanPrintCss() {
       height: 210mm;
       min-height: 210mm;
       max-height: 210mm;
-      padding: 8mm 10mm;
+      padding: 6mm 8mm;
     }
     .print-page-rab-landscape .print-pdf-img,
     .print-page-rab-landscape .print-bukti-img-full {
@@ -550,7 +556,7 @@ function getPengajuanPrintCss() {
       html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
       .print-page {
         width: 210mm !important; height: 297mm !important; min-height: 297mm !important; max-height: 297mm !important;
-        margin: 0 !important; padding: 10mm 12mm !important; overflow: hidden !important;
+        margin: 0 !important; padding: 8mm 10mm !important; overflow: hidden !important;
         break-inside: avoid !important; page-break-inside: avoid !important;
       }
       .print-page-rab-landscape {
@@ -559,10 +565,10 @@ function getPengajuanPrintCss() {
         height: 210mm !important;
         min-height: 210mm !important;
         max-height: 210mm !important;
-        padding: 8mm 10mm !important;
+        padding: 6mm 8mm !important;
       }
       .print-page-break { break-after: page !important; page-break-after: always !important; }
-      .print-pdf-img, .print-bukti-img-full { max-width: 100% !important; max-height: 100% !important; }
+      .print-pdf-img, .print-bukti-img-full { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; }
       .print-page-office {
         height: auto !important; min-height: 0 !important; max-height: none !important;
         overflow: visible !important; page-break-inside: auto !important; break-inside: auto !important;
