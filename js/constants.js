@@ -9,8 +9,8 @@ const APP_LIMITS = {
   MAX_BUKTI_COUNT: 20,
   ALLOWED_TEMPLATE_EXT: ['pdf', 'xls', 'xlsx', 'doc', 'docx'],
   ALLOWED_SURAT_TEMPLATE_EXT: ['pdf', 'doc', 'docx'],
-  ALLOWED_PENGAJUAN_EXT: ['pdf', 'xls', 'xlsx', 'doc', 'docx'],
-  ALLOWED_SURAT_PENGAJUAN_EXT: ['pdf', 'doc', 'docx'],
+  ALLOWED_PENGAJUAN_EXT: ['pdf'],
+  ALLOWED_SURAT_PENGAJUAN_EXT: ['pdf'],
   ALLOWED_BUKTI_EXT: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
 };
 

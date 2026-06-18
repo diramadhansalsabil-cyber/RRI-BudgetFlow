@@ -424,24 +424,44 @@ async function fetchPdfDocument(url) {
   }
 }
 
-const PRINT_IMG_MAX_WIDTH_PX = 680;
-const PRINT_IMG_MAX_HEIGHT_PX = 900;
+const PRINT_RENDER_DPI = 200;
+const PRINT_JPEG_QUALITY = 0.96;
 
-async function pdfPageToImageDataUrl(pdf, pageNum) {
+function mmToPrintPx(mm, dpi = PRINT_RENDER_DPI) {
+  return Math.round((mm / 25.4) * dpi);
+}
+
+function getPrintRenderTarget(landscape = false) {
+  if (landscape) {
+    return {
+      maxWidth: mmToPrintPx(277),
+      maxHeight: mmToPrintPx(194),
+    };
+  }
+  return {
+    maxWidth: mmToPrintPx(186),
+    maxHeight: mmToPrintPx(277),
+  };
+}
+
+function printPageClassNames(...parts) {
+  return parts.filter(Boolean).join(' ').trim();
+}
+
+async function pdfPageToImageDataUrl(pdf, pageNum, { landscape = false } = {}) {
+  const { maxWidth, maxHeight } = getPrintRenderTarget(landscape);
   const page = await pdf.getPage(pageNum);
   const baseViewport = page.getViewport({ scale: 1 });
-  const scale = Math.min(
-    PRINT_IMG_MAX_WIDTH_PX / baseViewport.width,
-    PRINT_IMG_MAX_HEIGHT_PX / baseViewport.height,
-    2.5
-  );
+  const scale = Math.min(maxWidth / baseViewport.width, maxHeight / baseViewport.height);
   const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   canvas.width = viewport.width;
   canvas.height = viewport.height;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   await page.render({ canvasContext: ctx, viewport }).promise;
-  return canvas.toDataURL('image/jpeg', 0.92);
+  return canvas.toDataURL('image/jpeg', PRINT_JPEG_QUALITY);
 }
 
 function getPengajuanPrintCss() {
@@ -492,6 +512,9 @@ function getPengajuanPrintCss() {
     }
     .print-pdf-img, .print-bukti-img-full {
       display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; margin: 0 auto;
+      image-rendering: auto;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .print-bukti-figure-full { margin: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd; padding: 2mm; background: #fafafa; }
     .print-rab-loading, .print-empty, .print-rab-fallback { font-size: 10pt; color: #666; text-align: center; margin: auto; }
@@ -508,13 +531,35 @@ function getPengajuanPrintCss() {
     .print-office-body td, .print-office-body th { border: 1px solid #333; padding: 2px 4px; vertical-align: top; word-break: break-word; }
     .print-office-body img { max-width: 100%; height: auto; }
     .print-xlsx-sheet-title { font-size: 9pt; font-weight: 700; margin: 0 0 2mm; }
+    @page { size: A4 portrait; margin: 0; }
+    @page rab-landscape { size: A4 landscape; margin: 0; }
+    .print-page-rab-landscape {
+      page: rab-landscape;
+      width: 297mm;
+      height: 210mm;
+      min-height: 210mm;
+      max-height: 210mm;
+      padding: 8mm 10mm;
+    }
+    .print-page-rab-landscape .print-pdf-img,
+    .print-page-rab-landscape .print-bukti-img-full {
+      max-width: 100%;
+      max-height: 100%;
+    }
     @media print {
-      @page { size: A4 portrait; margin: 0; }
       html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
       .print-page {
         width: 210mm !important; height: 297mm !important; min-height: 297mm !important; max-height: 297mm !important;
         margin: 0 !important; padding: 10mm 12mm !important; overflow: hidden !important;
         break-inside: avoid !important; page-break-inside: avoid !important;
+      }
+      .print-page-rab-landscape {
+        page: rab-landscape !important;
+        width: 297mm !important;
+        height: 210mm !important;
+        min-height: 210mm !important;
+        max-height: 210mm !important;
+        padding: 8mm 10mm !important;
       }
       .print-page-break { break-after: page !important; page-break-after: always !important; }
       .print-pdf-img, .print-bukti-img-full { max-width: 100% !important; max-height: 100% !important; }
@@ -527,26 +572,26 @@ function getPengajuanPrintCss() {
   `;
 }
 
-function buildOfficeHtmlPageSection({ sectionTitle, fileName, pageNum, total, bodyHtml, sheetName }) {
+function buildOfficeHtmlPageSection({ sectionTitle, fileName, pageNum, total, bodyHtml, sheetName, pageClass = '' }) {
   const header =
     pageNum === 1
       ? `<header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2><p>${escapeHtml(fileName || '')}${total > 1 ? ` — Halaman ${pageNum} dari ${total}` : ''}</p></header>`
       : `<header class="print-pdf-page-header print-pdf-page-header--sub"><p>${escapeHtml(sectionTitle)}${sheetName ? ` · ${escapeHtml(sheetName)}` : ''} — Halaman ${pageNum} dari ${total}</p></header>`;
   const sheetLabel = sheetName ? `<p class="print-xlsx-sheet-title">Sheet: ${escapeHtml(sheetName)}</p>` : '';
   return `
-    <section class="print-page print-page-office print-office-page" data-print-section="${escapeHtml(sectionTitle)}">
+    <section class="${printPageClassNames('print-page', 'print-page-office', 'print-office-page', pageClass)}" data-print-section="${escapeHtml(sectionTitle)}">
       ${header}
       <div class="print-office-body">${sheetLabel}${bodyHtml}</div>
     </section>`;
 }
 
-function buildPdfPageSectionHtml({ sectionTitle, fileName, pageNum, total, dataUrl, imgAlt }) {
+function buildPdfPageSectionHtml({ sectionTitle, fileName, pageNum, total, dataUrl, imgAlt, pageClass = '' }) {
   const header =
     pageNum === 1
       ? `<header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2><p>${escapeHtml(fileName || '')} — Halaman ${pageNum} dari ${total}</p></header>`
       : `<header class="print-pdf-page-header print-pdf-page-header--sub"><p>${escapeHtml(sectionTitle)} — Halaman ${pageNum} dari ${total}</p></header>`;
   return `
-    <section class="print-page print-pdf-page" data-print-section="${escapeHtml(sectionTitle)}">
+    <section class="${printPageClassNames('print-page', 'print-pdf-page', pageClass)}" data-print-section="${escapeHtml(sectionTitle)}">
       ${header}
       <div class="print-pdf-page-body">
         <img src="${dataUrl}" alt="${escapeHtml(imgAlt)} halaman ${pageNum}" class="print-pdf-img" />
@@ -588,7 +633,7 @@ function rowsToTableHtml(rows) {
   return `<table class="print-xlsx-table"><tbody>${body}</tbody></table>`;
 }
 
-async function renderDocxPrintPages(container, arrayBuffer, { fileName, sectionTitle }) {
+async function renderDocxPrintPages(container, arrayBuffer, { fileName, sectionTitle, pageClass = '' }) {
   const mammoth = await loadMammoth();
   const result = await mammoth.convertToHtml(
     { arrayBuffer },
@@ -607,11 +652,12 @@ async function renderDocxPrintPages(container, arrayBuffer, { fileName, sectionT
     pageNum: 1,
     total: 1,
     bodyHtml: html,
+    pageClass,
   });
   return { pages: 1 };
 }
 
-async function renderXlsxPrintPages(container, arrayBuffer, { fileName, sectionTitle }) {
+async function renderXlsxPrintPages(container, arrayBuffer, { fileName, sectionTitle, pageClass = '' }) {
   const XLSX = await loadSheetJs();
   const wb = XLSX.read(arrayBuffer, { type: 'array' });
   const parts = [];
@@ -634,6 +680,7 @@ async function renderXlsxPrintPages(container, arrayBuffer, { fileName, sectionT
           pageNum,
           total: totalPages,
           bodyHtml: rowsToTableHtml(chunk),
+          pageClass,
           sheetName:
             wb.SheetNames.length > 1 || chunks.length > 1
               ? `${sheetName}${chunks.length > 1 ? ` (${chunkIndex + 1}/${chunks.length})` : ''}`
@@ -651,6 +698,7 @@ async function renderXlsxPrintPages(container, arrayBuffer, { fileName, sectionT
         pageNum: 1,
         total: 1,
         bodyHtml: '<p class="print-empty">File Excel kosong</p>',
+        pageClass,
       })
     );
   }
@@ -659,18 +707,18 @@ async function renderXlsxPrintPages(container, arrayBuffer, { fileName, sectionT
   return { pages: parts.length };
 }
 
-async function renderOfficePrintPages(container, { url, fileName, ext, sectionTitle }) {
+async function renderOfficePrintPages(container, { url, fileName, ext, sectionTitle, pageClass = '' }) {
   const data = await fetchFileArrayBuffer(url);
   if (ext === 'docx') {
-    return renderDocxPrintPages(container, data, { fileName, sectionTitle });
+    return renderDocxPrintPages(container, data, { fileName, sectionTitle, pageClass });
   }
   if (ext === 'xls' || ext === 'xlsx') {
-    return renderXlsxPrintPages(container, data, { fileName, sectionTitle });
+    return renderXlsxPrintPages(container, data, { fileName, sectionTitle, pageClass });
   }
   throw new Error(`Format .${ext} tidak didukung untuk pratinjau cetak`);
 }
 
-async function renderPdfAllPages(containerId, { url, fileName, fileType, sectionTitle, imgAlt }) {
+async function renderPdfAllPages(containerId, { url, fileName, fileType, sectionTitle, imgAlt, pageClass = '' }) {
   const container = document.getElementById(containerId);
   if (!container) return { pages: 0 };
 
@@ -685,7 +733,7 @@ async function renderPdfAllPages(containerId, { url, fileName, fileType, section
 
   if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) || url.startsWith('data:image/')) {
     container.innerHTML = `
-      <section class="print-page print-pdf-page" data-print-section="${escapeHtml(sectionTitle)}">
+      <section class="${printPageClassNames('print-page', 'print-pdf-page', pageClass)}" data-print-section="${escapeHtml(sectionTitle)}">
         <header class="print-pdf-page-header"><h2>${escapeHtml(sectionTitle)}</h2><p>${escapeHtml(fileName || '')}</p></header>
         <div class="print-pdf-page-body"><img src="${url}" alt="${escapeHtml(imgAlt)}" class="print-pdf-img" /></div>
       </section>`;
@@ -697,9 +745,10 @@ async function renderPdfAllPages(containerId, { url, fileName, fileType, section
     try {
       const pdf = await fetchPdfDocument(url);
       const total = pdf.numPages;
+      const landscape = pageClass.includes('print-page-rab-landscape');
       const parts = [];
       for (let pageNum = 1; pageNum <= total; pageNum++) {
-        const dataUrl = await pdfPageToImageDataUrl(pdf, pageNum);
+        const dataUrl = await pdfPageToImageDataUrl(pdf, pageNum, { landscape });
         parts.push(
           buildPdfPageSectionHtml({
             sectionTitle,
@@ -708,6 +757,7 @@ async function renderPdfAllPages(containerId, { url, fileName, fileType, section
             total,
             dataUrl,
             imgAlt,
+            pageClass,
           })
         );
         if (total > 10 && pageNum % 10 === 0) {
@@ -727,7 +777,7 @@ async function renderPdfAllPages(containerId, { url, fileName, fileType, section
 
   if (['docx', 'xls', 'xlsx'].includes(ext)) {
     try {
-      const result = await renderOfficePrintPages(container, { url, fileName, ext, sectionTitle });
+      const result = await renderOfficePrintPages(container, { url, fileName, ext, sectionTitle, pageClass });
       delete container.dataset.pdfLoading;
       return result;
     } catch (e) {
@@ -761,11 +811,12 @@ async function renderRabPrintPreview(p) {
     fileType: p?.fileType,
     sectionTitle: 'LAMPIRAN RENCANA ANGGARAN BIAYA (RAB)',
     imgAlt: 'RAB',
+    pageClass: 'print-page-rab-landscape',
   });
 }
 
 async function handlePengajuanPrint(p) {
-  showToast('Menyiapkan dokumen cetak...', 'info');
+  showToast('Menyiapkan dokumen cetak HD...', 'info');
   // Urutan tetap: 1) Informasi → 2) Surat → 3) Bukti → 4+) RAB (semua halaman)
   const suratResult = await renderSuratPrintPreview(p);
   const buktiResult = await renderBuktiPrintPreview(p?.bukti);
@@ -831,7 +882,7 @@ async function handlePengajuanPrint(p) {
         win.focus();
         win.print();
         win.addEventListener('afterprint', closePrintWindow);
-      }, 400);
+      }, 800);
     });
   });
 }
@@ -1104,13 +1155,13 @@ function pageUserPengajuan(user, editId) {
         <div class="form-group">
           <label>${icon('document', 14)} Upload Surat Pengajuan * (PDF)</label>
           <p class="form-hint">Unggah surat pengajuan yang sudah diisi (unduh template di menu Template Surat)</p>
-          <input type="file" id="suratFile" class="input" ${isRevisi ? '' : 'required'} />
+          <input type="file" id="suratFile" class="input" accept=".pdf" ${isRevisi ? '' : 'required'} />
           ${editing?.suratFileName ? `<p class="form-hint">File surat saat ini: ${escapeHtml(editing.suratFileName)} (${formatFileSize(editing.suratFileSize)})</p>` : ''}
         </div>
         <div class="form-group">
           <label>${icon('upload', 14)} Upload File RAB (Opsional) (PDF)</label>
           <p class="form-hint">Lampirkan file RAB jika sudah tersedia. Pengajuan tetap dapat dikirim tanpa file RAB.</p>
-          <input type="file" id="rabFile" class="input" />
+          <input type="file" id="rabFile" class="input" accept=".pdf" />
           ${editing?.fileName ? `<p class="form-hint">File saat ini: ${escapeHtml(editing.fileName)} (${formatFileSize(editing.fileSize)})</p>` : ''}
         </div>
         <div class="submit-actions">
